@@ -73,6 +73,8 @@ static int establish_connection();
 
 static char *push_config = 0;
 static char *apns_cert_file = 0;
+static char *apns_cert_key  = 0;
+static char *apns_cert_ca   = 0;
 static char *apns_server = 0;
 static char *apns_alert = "You have a call";
 static int   apns_badge = -1;
@@ -105,6 +107,8 @@ static param_export_t params[] = {
 	{"push_config",        STR_PARAM, &push_config        },
 	{"push_flag",          INT_PARAM, &push_flag          },
     {"push_apns_cert",     STR_PARAM, &apns_cert_file     },
+    {"push_apns_key",      STR_PARAM, &apns_cert_key      },
+    {"push_apns_cafile",   STR_PARAM, &apns_cert_ca       },
     {"push_apns_server",   STR_PARAM, &apns_server        },
 	{"push_apns_port",     INT_PARAM, &apns_port          },
 	{"push_apns_alert",    STR_PARAM, &apns_alert         },
@@ -135,14 +139,25 @@ static SSL* ssl = NULL;
 static SSL_CTX* ssl_ctx = NULL;
 static int s_server_session_id_context = 1;
 
-static int load_ssl_certs(SSL_CTX* ctx, char* cert)
+static int load_ssl_certs(SSL_CTX* ctx, char* cert, char* key, char* ca)
 {
     LM_DBG("Push: loading cert from [%s]\n", cert);
     /* set the local certificate from cert file */
-    if ( SSL_CTX_use_certificate_chain_file(ctx, cert) <= 0)
+    //if ( SSL_CTX_use_certificate_chain_file(ctx, cert) <= 0)
+    if(!(SSL_CTX_use_certificate_file(ctx, cert, SSL_FILETYPE_PEM)))
     {
         
         ERR_print_errors_fp(stderr);
+        return -1;
+    }
+    if(!(SSL_CTX_use_PrivateKey_file(ctx, key, SSL_FILETYPE_PEM)))
+    {
+
+        return -1;
+    }
+
+    if(!(SSL_CTX_load_verify_locations(ctx, ca, 0)))
+    {
         return -1;
     }
 
@@ -336,7 +351,7 @@ static int establish_connection()
 
     LM_DBG("SSL context started, looading certs if any\n");
     if (apns_cert_file)
-        load_ssl_certs(ssl_ctx, apns_cert_file);
+        load_ssl_certs(ssl_ctx, apns_cert_file, apns_cert_key, apns_cert_ca);
 
     ssl_socket = socket_init(apns_server, apns_port);
     if (ssl_socket == -1)
