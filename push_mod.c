@@ -139,25 +139,40 @@ static SSL* ssl = NULL;
 static SSL_CTX* ssl_ctx = NULL;
 static int s_server_session_id_context = 1;
 
+#define LOG_SSL_ERROR(err)                                           \
+    do                                                               \
+    {                                                                \
+        while ((err = ERR_get_error())) {                            \
+            LM_ERR("SSL error: %s\n", ERR_error_string(err, 0));     \
+        }                                                            \
+    }while(0)
+
+
 static int load_ssl_certs(SSL_CTX* ctx, char* cert, char* key, char* ca)
 {
+    int err;
     LM_DBG("Push: loading cert from [%s]\n", cert);
+
     /* set the local certificate from cert file */
     //if ( SSL_CTX_use_certificate_chain_file(ctx, cert) <= 0)
-    if(!(SSL_CTX_use_certificate_file(ctx, cert, SSL_FILETYPE_PEM)))
+    err = SSL_CTX_use_certificate_file(ctx, cert, SSL_FILETYPE_PEM);
+    if(1 != err)
     {
-        
-        ERR_print_errors_fp(stderr);
-        return -1;
-    }
-    if(!(SSL_CTX_use_PrivateKey_file(ctx, key, SSL_FILETYPE_PEM)))
-    {
-
+        LOG_SSL_ERROR(err);
         return -1;
     }
 
-    if(!(SSL_CTX_load_verify_locations(ctx, ca, 0)))
+    err = SSL_CTX_use_PrivateKey_file(ctx, key, SSL_FILETYPE_PEM);
+    if(err != 1)
     {
+        LOG_SSL_ERROR(err);
+        return -1;
+    }
+    
+    err = SSL_CTX_load_verify_locations(ctx, ca, 0);
+    if (err != 1)
+    {
+        LOG_SSL_ERROR(err);
         return -1;
     }
 
@@ -304,25 +319,39 @@ static int send_push_data(const char* buffer, uint32_t length)
     while(written != length)
     {
         err = SSL_write (ssl, buffer + written, length - written);
-        if (err <= 0)
+
+        switch(SSL_get_error(ssl, err))
         {
-            LM_ERR("Peer connection closed, err %d...", 
-                   SSL_get_error(ssl, err));
-
-            while((err = ERR_get_error())) {
-                LM_ERR("SSL error: %s\n", ERR_error_string(err, 0));
+            case SSL_ERROR_NONE:
+                written += err;
+                break;
+            default:
+            {
+                SSL_get_error(ssl, err);
+                return -1;
             }
-
-            // closed connection?
-            return -1;
         }
-        /* else if (err == -1) */
+    }
+        /* if (err <= 0) */
         /* { */
-        /*     // what is going on? Bad error? */
+        /*     LM_ERR("Peer connection closed, err %d...",  */
+        /*            SSL_get_error(ssl, err)); */
+
+        /*     /\* while((err = ERR_get_error())) { *\/ */
+        /*     /\*     LM_ERR("SSL error: %s\n", ERR_error_string(err, 0)); *\/ */
+        /*     /\* } *\/ */
+        /*     LOG_SSL_ERROR(err); */
+        /*     // closed connection? */
         /*     return -1; */
         /* } */
-        written += err;
-    }
+
+        /* /\* else if (err == -1) *\/ */
+        /* /\* { *\/ */
+        /* /\*     // what is going on? Bad error? *\/ */
+        /* /\*     return -1; *\/ */
+        /* /\* } *\/ */
+        /* written += err; */
+/*}*/
 
     return err;
 }
