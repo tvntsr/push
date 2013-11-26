@@ -289,16 +289,23 @@ static int send_push_data(const char* buffer, uint32_t length)
     while(written != length)
     {
         err = SSL_write (ssl, buffer + written, length - written);
-        if (err == 0)
+        if (err <= 0)
         {
+            LM_ERR("Peer connection closed, err %d...", 
+                   SSL_get_error(ssl, err));
+
+            while((err = ERR_get_error())) {
+                LM_ERR("SSL error: %s\n", ERR_error_string(err, 0));
+            }
+
             // closed connection?
             return -1;
         }
-        else if (err == -1)
-        {
-            // what is going on? Bad error?
-            return -1;
-        }
+        /* else if (err == -1) */
+        /* { */
+        /*     // what is going on? Bad error? */
+        /*     return -1; */
+        /* } */
         written += err;
     }
 
@@ -478,11 +485,14 @@ static int w_push_request(struct sip_msg *rq, char *device_token)
     LM_DBG("token %s\n", device_token);
     APNS_Notification* notification = create_notification();
     if (notification == NULL)
+    {
+        LM_ERR("Cannot create notification\n");
         return -1;
-
+    }
     payload = calloc(1, sizeof(APNS_Payload));
     if (payload == NULL)
     {
+        LM_ERR("Cannot create payload\n");
         destroy_notification(notification);
         return -1;
     }
@@ -493,6 +503,7 @@ static int w_push_request(struct sip_msg *rq, char *device_token)
     item = create_item(payload);
     if (item == NULL)
     {
+        LM_ERR("Cannot create item\n");
         destroy_notification(notification);
         destroy_payload(payload);
         return -1;
@@ -519,6 +530,7 @@ static int w_push_request(struct sip_msg *rq, char *device_token)
     }
 
     LM_DBG("Sending data to apns\n");
+
     if (-1 == send_push_data(message, notification->length))
     {
         LM_ERR("Push sending failed\n");
@@ -532,6 +544,7 @@ static int w_push_request(struct sip_msg *rq, char *device_token)
     LM_DBG("Success\n");
     return 0;
 }
+
 static int w_push_status(struct sip_msg *rq, char* device_token, int code)
 {
     return -1;
