@@ -60,8 +60,8 @@ static void feedback_service(int rank);
 //int push_init(acc_init_info_t *inf);
 //int push_send_request(struct sip_msg *req, acc_info_t *inf);
 
-static int w_push_request(struct sip_msg *rq, char *device_token);
-static int w_push_status(struct sip_msg *rq, char* device_token, int code);
+static int w_push_request(struct sip_msg *rq, const char *device_token);
+static int w_push_status(struct sip_msg *rq, const char* device_token, int code);
 
 static int push_api_fixup(void** param, int param_no);
 static int free_push_api_fixup(void** param, int param_no);
@@ -83,6 +83,8 @@ static char *apns_sound = 0;
 static int apns_feedback_port = 2196;
 static int apns_port;
 static int push_flag = 0;
+static int apns_read_timeout = 100000;
+static int apns_feedback_read_timeout = 500000;
 ///void *rh;
 
 /*@}*/
@@ -108,9 +110,10 @@ static param_export_t params[] = {
 	{"push_apns_alert",    STR_PARAM, &apns_alert         },
 	{"push_apns_sound",    STR_PARAM, &apns_sound         },
 	{"push_apns_badge",    INT_PARAM, &apns_badge         },
+	{"push_apns_rtimeout", INT_PARAM, &apns_read_timeout  },
     {"push_apns_feedback_server",   STR_PARAM, &apns_feedback_server },
 	{"push_apns_feedback_port",     INT_PARAM, &apns_feedback_port   },
-
+	{"push_apns_feedback_rtimeout", INT_PARAM, &apns_feedback_read_timeout },
 	{0,0,0}
 };
 
@@ -175,7 +178,7 @@ static int mod_init( void )
         return -1;
     }
 
-    apns->read_timeout = 100000;
+    apns->read_timeout = apns_read_timeout;
 
     ssl_init();
 
@@ -255,7 +258,7 @@ static int free_push_api_fixup(void** param, int param_no)
     return 0;
 }
 
-static int w_push_request(struct sip_msg *rq, char *device_token)
+static int w_push_request(struct sip_msg *rq, const char *device_token)
 {
     APNS_Payload* payload = NULL;
     APNS_Item*    item;
@@ -342,10 +345,11 @@ static int w_push_request(struct sip_msg *rq, char *device_token)
     destroy_notification(notification);
 
     LM_DBG("Success\n");
-    return 0;
+
+    return 1;
 }
 
-static int w_push_status(struct sip_msg *rq, char* device_token, int code)
+static int w_push_status(struct sip_msg *rq, const char* device_token, int code)
 {
     return -1;
 }
@@ -374,7 +378,7 @@ static void feedback_service(int rank)
         return;
     }
 
-    feedback->read_timeout = 500000;
+    feedback->read_timeout = apns_feedback_read_timeout;
 
     establish_ssl_connection(feedback);
 

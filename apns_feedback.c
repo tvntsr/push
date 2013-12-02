@@ -63,4 +63,8 @@ void run_feedback(PushServer* server)
                 data.token);
 
     }while(ret > 0);
+
+    LM_INFO("Feedback routine done\n");
+
+    destroy_push_server(server);
 }

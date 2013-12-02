@@ -17,8 +17,11 @@
 #include "push_ssl_utils.h"
 
 
-PushServer* create_push_server(char *cert_file, char *cert_key, char *cert_ca,
-                               char *fqdn, uint16_t port)
+PushServer* create_push_server(const char *cert_file, 
+                               const char *cert_key, 
+                               const char *cert_ca,
+                               const char *fqdn,
+                               uint16_t port)
 {
     PushServer* server;
 

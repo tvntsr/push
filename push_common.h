@@ -35,8 +35,11 @@ enum PUSH_FLAG_VALUE
     NoReconnect
 };
 
-PushServer* create_push_server(char *cert_file, char *cert_key, char *cert_ca,
-                               char *server, uint16_t port);
+PushServer* create_push_server(const char *cert_file, 
+                               const char *cert_key, 
+                               const char *cert_ca,
+                               const char *server, 
+                               uint16_t port);
 void destroy_push_server(PushServer*);
 
 
