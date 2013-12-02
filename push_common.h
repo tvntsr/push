@@ -20,6 +20,10 @@ struct PushServer
     int      flags;
 
     int      error;
+    
+    int      read_timeout; // usec
+    int      write_timeout; // usec
+
 };
 
 typedef struct PushServer PushServer;

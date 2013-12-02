@@ -40,17 +40,22 @@
 #include "../../parser/parse_to.h"
 //#include "../../lib/kcore/radius.h"
 //#include "../../modules/acc/acc_api.h"
+#include "../../cfg/cfg_struct.h"
 
 #include "push_mod.h"
 #include "push.h"
 #include "push_common.h"
 #include "push_ssl_utils.h"
+#include "apns_feedback.h"
 
 MODULE_VERSION
 
 static int mod_init(void);
 static void destroy(void);
 static int child_init(int rank);
+static void start_feedback_service();
+
+static void feedback_service(int rank);
 
 //int push_init(acc_init_info_t *inf);
 //int push_send_request(struct sip_msg *req, acc_info_t *inf);
@@ -71,11 +76,12 @@ static char *apns_cert_file = 0;
 static char *apns_cert_key  = 0;
 static char *apns_cert_ca   = 0;
 static char *apns_server = 0;
+static char *apns_feedback_server = "feedback.sandbox.push.apple.com";
 static char *apns_alert = "You have a call";
 static int   apns_badge = -1;
 static char *apns_sound = 0;
-
-static int  apns_port;
+static int apns_feedback_port = 2196;
+static int apns_port;
 static int push_flag = 0;
 ///void *rh;
 
@@ -102,7 +108,15 @@ static param_export_t params[] = {
 	{"push_apns_alert",    STR_PARAM, &apns_alert         },
 	{"push_apns_sound",    STR_PARAM, &apns_sound         },
 	{"push_apns_badge",    INT_PARAM, &apns_badge         },
+    {"push_apns_feedback_server",   STR_PARAM, &apns_feedback_server },
+	{"push_apns_feedback_port",     INT_PARAM, &apns_feedback_port   },
+
 	{0,0,0}
+};
+
+static proc_export_t procs[] = {
+        {"Feedback service",  0,  0, feedback_service, 1 },
+        {0,0,0,0,0}
 };
 
 
@@ -114,7 +128,7 @@ struct module_exports exports= {
 	0,          /* exported statistics */
 	0,          /* exported MI functions */
 	0,          /* exported pseudo-variables */
-	0,          /* extra processes */
+	procs,      /* extra processes */
 	mod_init,   /* initialization module */
 	0,          /* response function */
 	destroy,    /* destroy function */
@@ -155,7 +169,17 @@ static int mod_init( void )
                               apns_cert_ca, 
                               apns_server, 
                               apns_port);
+    if (NULL == apns)
+    {
+        LM_ERR("Cannot create push structure, failed");
+        return -1;
+    }
+
+    apns->read_timeout = 100000;
+
     ssl_init();
+
+    register_procs(1);
 
 	if (push_config == NULL || push_config[0] == '\0')
 		return 0;
@@ -170,6 +194,23 @@ static int child_init(int rank)
 {
     LM_DBG("Child Init Push module\n");
 
+    if (rank==PROC_MAIN) 
+    {
+        pid_t pid;
+		pid = fork_process(PROC_NOCHLDINIT, "MY PROC DESCRIPTION", 1);
+		if (pid < 0)
+			return -1; /* error */
+		if(pid == 0){
+			/* child */
+            
+			/* initialize the config framework */
+			if (cfg_child_init())
+				return -1;
+            
+			feedback_service(1);
+		}
+	}
+
     if (push_flag == ConnectEstablish)
         return establish_ssl_connection(apns);
 
@@ -183,6 +224,7 @@ static void destroy(void)
 {
     LM_DBG("Push destroy\n");
     destroy_push_server(apns);
+
     //ssl_shutdown();
 }
 
@@ -306,4 +348,35 @@ static int w_push_request(struct sip_msg *rq, char *device_token)
 static int w_push_status(struct sip_msg *rq, char* device_token, int code)
 {
     return -1;
+}
+
+static void feedback_service(int rank)
+{
+#define FEEDBACK_MSG_LEN 38
+    char status_buf[FEEDBACK_MSG_LEN];
+
+    int read_len = 0;
+    int err = 0;
+
+    uint32_t id = 0;
+
+    PushServer *feedback;
+
+    feedback = create_push_server(apns_cert_file, 
+                                  apns_cert_key, 
+                                  apns_cert_ca, 
+                                  apns_feedback_server, 
+                                  apns_feedback_port);
+
+    if (feedback == NULL)
+    {
+        LM_ERR("Cannot initiale feedback service");
+        return;
+    }
+
+    feedback->read_timeout = 500000;
+
+    establish_ssl_connection(feedback);
+
+    run_feedback(feedback);
 }

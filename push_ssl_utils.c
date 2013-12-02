@@ -82,8 +82,13 @@ struct Push_error_Item
         }                                                            \
     }while(0)
 
-void read_status(SSL *ssl, int sock);
-
+// Declaration: Static functions 
+static void read_status(PushServer* server);
+static int load_ssl_certs(SSL_CTX* ctx, char* cert, char* key, char* ca);
+static int socket_init(const char* server, uint16_t port);
+static SSL_CTX* ssl_context();
+static SSL* ssl_start(int sd, SSL_CTX* ctx);
+static int check_cert(SSL* s);
 
 static int load_ssl_certs(SSL_CTX* ctx, char* cert, char* key, char* ca)
 {
@@ -237,7 +242,47 @@ static int check_cert(SSL* s)
 
     return 0;
 }
-  
+
+static void read_status(PushServer* server)
+{
+#define STATUS_LEN 6
+    char status_buf[STATUS_LEN];
+
+    int read_len = 0;
+    int err = 0;
+
+    uint32_t id = 0;
+
+    err = read_push_status(server, status_buf, STATUS_LEN);
+    switch(err)
+    {
+        case 0:
+        {
+            LM_DBG("There is no status message");
+            return;
+        }
+        case -1:
+            LM_DBG("There is error occured");
+            return;
+        default:
+            break;
+    }
+
+    if (status_buf[0] != STATUS_CMD)
+    {
+        LM_ERR("Received wrong status cmd (%c), expecting '8'", status_buf[0]);
+        return;
+    }
+
+    memcpy(status_buf+2, &id, sizeof(id));
+
+    LM_INFO("Status message for %d: response status: %c", 
+            ntohl(id), 
+            status_buf[1]);
+}
+
+// Public functions
+
 int send_push_data(PushServer* server, const char* buffer, uint32_t length)
 {
     int err = 0;
@@ -271,7 +316,7 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
         }
     }
 
-    read_status(server->ssl, server->socket);
+    read_status(server);
 
     return err;
 }
@@ -348,68 +393,56 @@ void ssl_init()
     SSL_load_error_strings();
 }
 
-void read_status(SSL *ssl, int sock)
+int read_push_status(PushServer* server, char* buffer, uint32_t length)
 {
-#define STATUS_LEN 6
-    char status_buf[STATUS_LEN];
-
     int read_len = 0;
     int err = 0;
-
-    uint32_t id = 0;
 
     fd_set readfds;
     struct timeval timeout;
 
-    while(read_len != STATUS_LEN)
+    while(read_len != length)
     {
-        timeout.tv_usec = 1000;
+        timeout.tv_usec = server->read_timeout;
         timeout.tv_sec = 0;
 
-        FD_SET(sock, &readfds);
-        err = select(sock+1, &readfds, 0, 0, &timeout);
+        FD_SET(server->socket, &readfds);
+        err = select(server->socket+1, &readfds, 0, 0, &timeout);
         switch(err)
         {
             case 0:
             {
-                // No data, ruturn
+                // No data, return
                 LM_DBG("No data in response, skip it\n");
-                return;
+                return 0;
             }
             case -1:
             {
+                server->error = errno;
                 LM_ERR("Error (%d) occured in select, returns\n", errno);
-                return;
+                return -1;
             }
             default:
                 break;
         }       
 
-        err = SSL_read(ssl, status_buf, STATUS_LEN);
+        err = SSL_read(server->ssl, buffer, length);
 
-        switch(SSL_get_error(ssl, err))
+        switch(SSL_get_error(server->ssl, err))
         {
             case SSL_ERROR_NONE:
                 read_len += err;
                 if (err == 0) // peer reset?
-                    return;
+                    return read_len;
                 break;
             default:
             {
-                SSL_get_error(ssl, err);
-                return;
+                server->error = err;
+                SSL_get_error(server->ssl, err);
+                return -1;
             }
         }
     }
-    if (status_buf[0] != STATUS_CMD)
-    {
-        LM_ERR("Received wrong status cmd (%c), expecting '8'", status_buf[0]);
-        return;
-    }
 
-    memcpy(status_buf+2, &id, sizeof(id));
-
-    LM_INFO("Status message for %d: response status: %c", 
-            ntohl(id), 
-            status_buf[1]);
+    return read_len;
 }

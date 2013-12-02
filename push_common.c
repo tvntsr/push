@@ -55,10 +55,13 @@ PushServer* create_push_server(char *cert_file, char *cert_key, char *cert_ca,
 
     server->error = 0;
 
+    server->read_timeout = 0;
+    server->write_timeout = 0;
+
     return server;
 }
 
-void destoy_push_server(PushServer* server)
+void destroy_push_server(PushServer* server)
 {
     if (server == NULL)
         return;
