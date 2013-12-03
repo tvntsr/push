@@ -117,10 +117,10 @@ static param_export_t params[] = {
 	{0,0,0}
 };
 
-static proc_export_t procs[] = {
-        {"Feedback service",  0,  0, feedback_service, 1 },
-        {0,0,0,0,0}
-};
+/* static proc_export_t procs[] = { */
+/*         {"Feedback service",  0,  0, feedback_service, 1 }, */
+/*         {0,0,0,0,0} */
+/* }; */
 
 
 struct module_exports exports= {
@@ -131,7 +131,7 @@ struct module_exports exports= {
 	0,          /* exported statistics */
 	0,          /* exported MI functions */
 	0,          /* exported pseudo-variables */
-	procs,      /* extra processes */
+	0,          /* extra processes, depricated? */
 	mod_init,   /* initialization module */
 	0,          /* response function */
 	destroy,    /* destroy function */
@@ -182,7 +182,9 @@ static int mod_init( void )
 
     ssl_init();
 
+#ifdef ENABLE_FEEDBACK_SERVICE
     register_procs(1);
+#endif
 
 	if (push_config == NULL || push_config[0] == '\0')
 		return 0;
@@ -197,22 +199,30 @@ static int child_init(int rank)
 {
     LM_DBG("Child Init Push module\n");
 
-    if (rank==PROC_MAIN) 
+#ifdef ENABLE_FEEDBACK_SERVICE
+    if (rank == PROC_MAIN) 
     {
         pid_t pid;
 		pid = fork_process(PROC_NOCHLDINIT, "MY PROC DESCRIPTION", 1);
 		if (pid < 0)
 			return -1; /* error */
-		if(pid == 0){
+		if(pid == 0)
+        {
 			/* child */
             
 			/* initialize the config framework */
 			if (cfg_child_init())
+            {
+                LM_ERR("cfg child init failed\n");
 				return -1;
-            
+            }
+            LM_DBG("Start feedback server");
 			feedback_service(1);
+            
+            exit(0);
 		}
 	}
+#endif
 
     if (push_flag == ConnectEstablish)
         return establish_ssl_connection(apns);
@@ -379,8 +389,6 @@ static void feedback_service(int rank)
     }
 
     feedback->read_timeout = apns_feedback_read_timeout;
-
-    establish_ssl_connection(feedback);
 
     run_feedback(feedback);
 }

@@ -74,14 +74,6 @@ struct Push_error_Item
     {255, "None (unknown)"}
 };
 
-#define LOG_SSL_ERROR(err)                                           \
-    do                                                               \
-    {                                                                \
-        while ((err = ERR_get_error())) {                            \
-            LM_ERR("SSL error: %s\n", ERR_error_string(err, 0));     \
-        }                                                            \
-    }while(0)
-
 // Declaration: Static functions 
 static void read_status(PushServer* server);
 static int load_ssl_certs(SSL_CTX* ctx, char* cert, char* key, char* ca);
@@ -437,8 +429,10 @@ int read_push_status(PushServer* server, char* buffer, uint32_t length)
                 break;
             default:
             {
+                LM_ERR("Got error in reading: %d\n", err);
                 server->error = err;
-                SSL_get_error(server->ssl, err);
+                LOG_SSL_ERROR(err);
+                //SSL_get_error(server->ssl, err);
                 return -1;
             }
         }

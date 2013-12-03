@@ -31,7 +31,7 @@ void run_feedback(PushServer* server)
         LM_ERR("Cannot establish connection to feedback server\n");
         return;
     }
-
+    LM_DBG("Start feedback reader\n");
     do
     {
         ret = read_push_status(server, message, FEEDBACK_MSG_LEN);
@@ -44,7 +44,7 @@ void run_feedback(PushServer* server)
             case -1:
                 // error
                 LM_ERR("Got error on feedback server, return\n");
-                break;
+                return;
             default:
                 // print the message
                 break;
