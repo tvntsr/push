@@ -427,6 +427,12 @@ int read_push_status(PushServer* server, char* buffer, uint32_t length)
                 if (err == 0) // peer reset?
                     return read_len;
                 break;
+            case SSL_ERROR_ZERO_RETURN:
+              /* End of data */
+              /*   SSL_shutdown(ssl); */
+                return 0;
+            case SSL_ERROR_WANT_READ:
+              break;
             default:
             {
                 LM_ERR("Got error in reading: %d\n", err);
@@ -435,6 +441,7 @@ int read_push_status(PushServer* server, char* buffer, uint32_t length)
                 //SSL_get_error(server->ssl, err);
                 return -1;
             }
+
         }
     }
 
