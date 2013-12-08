@@ -3,6 +3,8 @@
 
 #include <openssl/ssl.h>
 
+#define ENABLE_FEEDBACK_SERVICE
+
 struct PushServer
 {
     char*    server;

@@ -53,9 +53,10 @@ MODULE_VERSION
 static int mod_init(void);
 static void destroy(void);
 static int child_init(int rank);
-static void start_feedback_service();
+//static void start_feedback_service();
 
-static void feedback_service(int rank);
+static void feedback_service(int fd);
+static void stop_feedback_service();
 
 //int push_init(acc_init_info_t *inf);
 //int push_send_request(struct sip_msg *req, acc_info_t *inf);
@@ -138,6 +139,8 @@ struct module_exports exports= {
 	child_init  /* per-child init function */
 };
 
+static int pipefd[2];
+
 /************************** SIP helper functions ****************************/
 static int
 get_callid(struct sip_msg* msg, str *cid)
@@ -203,13 +206,21 @@ static int child_init(int rank)
     if (rank == PROC_MAIN) 
     {
         pid_t pid;
+        if (-1 == pipe(pipefd))
+        {
+            LM_ERR("cannot create feedback command pipe\n");
+            return -1;
+        }
+        
 		pid = fork_process(PROC_NOCHLDINIT, "MY PROC DESCRIPTION", 1);
 		if (pid < 0)
 			return -1; /* error */
+
 		if(pid == 0)
         {
 			/* child */
-            
+            close(pipefd[1]);
+    
 			/* initialize the config framework */
 			if (cfg_child_init())
             {
@@ -217,10 +228,11 @@ static int child_init(int rank)
 				return -1;
             }
             LM_DBG("Start feedback server");
-			feedback_service(1);
+			feedback_service(pipefd[0]);
             
             exit(0);
 		}
+        close(pipefd[0]);
 	}
 #endif
 
@@ -236,7 +248,12 @@ static int child_init(int rank)
 static void destroy(void)
 {
     LM_DBG("Push destroy\n");
+#ifdef ENABLE_FEEDBACK_SERVICE
+    stop_feedback_service();
+#endif
+
     destroy_push_server(apns);
+
 
     //ssl_shutdown();
 }
@@ -364,7 +381,7 @@ static int w_push_status(struct sip_msg *rq, const char* device_token, int code)
     return -1;
 }
 
-static void feedback_service(int rank)
+static void feedback_service(int fd)
 {
 #define FEEDBACK_MSG_LEN 38
     char status_buf[FEEDBACK_MSG_LEN];
@@ -390,5 +407,13 @@ static void feedback_service(int rank)
 
     feedback->read_timeout = apns_feedback_read_timeout;
 
-    run_feedback(feedback);
+    run_feedback(feedback, fd);
+}
+
+static void stop_feedback_service()
+{
+    char cmd = 'q';
+    write(pipefd[1],&cmd, 1);
+
+    close(pipefd[1]);
 }

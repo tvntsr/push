@@ -18,6 +18,6 @@ struct feedback
     char token[TOKEN_FEEDBACK_LEN]; /* The device token in binary format.*/
 };
 
-void run_feedback(PushServer* server);
+void run_feedback(PushServer* server, int comm_sock);
 
 #endif //PUSH_APNS_FEEDBACK_H

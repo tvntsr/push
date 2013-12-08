@@ -387,6 +387,13 @@ void ssl_init()
 
 int read_push_status(PushServer* server, char* buffer, uint32_t length)
 {
+    return extended_read(server, -1, buffer, length);
+}
+
+int extended_read(PushServer* server,
+                  int comm_sock,
+                  char* buffer, uint32_t length)
+{
     int read_len = 0;
     int err = 0;
 
@@ -395,11 +402,19 @@ int read_push_status(PushServer* server, char* buffer, uint32_t length)
 
     while(read_len != length)
     {
+        int mx;
         timeout.tv_usec = server->read_timeout;
         timeout.tv_sec = 0;
 
         FD_SET(server->socket, &readfds);
-        err = select(server->socket+1, &readfds, 0, 0, &timeout);
+        if (comm_sock != -1)
+        {
+            FD_SET(comm_sock, &readfds);
+        }
+        
+        mx = server->socket > comm_sock ? server->socket+1 : comm_sock +1;
+
+        err = select(mx, &readfds, 0, 0, &timeout);
         switch(err)
         {
             case 0:
@@ -416,7 +431,12 @@ int read_push_status(PushServer* server, char* buffer, uint32_t length)
             }
             default:
                 break;
-        }       
+        }
+        if (FD_ISSET(comm_sock, &readfds))
+        {
+            read(comm_sock,buffer, 1);
+            return COMM_SOCK_OP;
+        }
 
         err = SSL_read(server->ssl, buffer, length);
 
@@ -425,11 +445,15 @@ int read_push_status(PushServer* server, char* buffer, uint32_t length)
             case SSL_ERROR_NONE:
                 read_len += err;
                 if (err == 0) // peer reset?
+                {
+                    LM_WARN("Reset peer?\n");
                     return read_len;
+                }
                 break;
             case SSL_ERROR_ZERO_RETURN:
               /* End of data */
               /*   SSL_shutdown(ssl); */
+                LM_WARN("SSL_ERROR_ZERO_RETURN\n");
                 return 0;
             case SSL_ERROR_WANT_READ:
               break;

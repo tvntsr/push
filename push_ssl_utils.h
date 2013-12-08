@@ -10,8 +10,13 @@
     }while(0)
 
 
+#define COMM_SOCK_OP -256
+
 int send_push_data(PushServer* server, const char* buffer, uint32_t length);
 int read_push_status(PushServer* server, char* buffer, uint32_t length);
+int extended_read(PushServer* server,
+                  int comm_sock,
+                  char* buffer, uint32_t length);
 int establish_ssl_connection(PushServer* server);
 void ssl_shutdown(PushServer* server);
 
