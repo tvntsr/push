@@ -10,6 +10,8 @@
 #include "../../mem/mem.h"
 #include "../../parser/parse_to.h"
 #include "../../lib/cds/list.h"
+#include "../../lib/srdb1/db.h"
+#include "../../lib/srdb1/db_val.h"
 
 #include "push.h"
 

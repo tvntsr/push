@@ -86,6 +86,10 @@ static int apns_port;
 static int push_flag = 0;
 static int apns_read_timeout = 100000;
 static int apns_feedback_read_timeout = 500000;
+
+static char *push_db = 0;
+static char *push_table = "push";
+
 ///void *rh;
 
 /*@}*/
@@ -102,6 +106,8 @@ static cmd_export_t cmds[] = {
 
 static param_export_t params[] = {
 	{"push_config",        STR_PARAM, &push_config        },
+	{"push_db",            STR_PARAM, &push_db            },
+    {"push_table",         STR_PARAM, &push_table         },
 	{"push_flag",          INT_PARAM, &push_flag          },
     {"push_apns_cert",     STR_PARAM, &apns_cert_file     },
     {"push_apns_key",      STR_PARAM, &apns_cert_key      },
@@ -183,6 +189,12 @@ static int mod_init( void )
 
     apns->read_timeout = apns_read_timeout;
 
+    if ((push_db) && (-1 == push_check_db(apns, push_db, push_table)))
+    {
+        LM_ERR("Cannot connect database, failed");
+        return -1;
+    }
+
     ssl_init();
 
 #ifdef ENABLE_FEEDBACK_SERVICE
@@ -235,6 +247,13 @@ static int child_init(int rank)
         close(pipefd[0]);
 	}
 #endif
+
+    if ((push_db) && (-1 == push_connect_db(apns, push_db, push_table, rank)))
+    {
+        LM_ERR("Cannot connect database, failed");
+        return -1;
+    }
+
 
     if (push_flag == ConnectEstablish)
         return establish_ssl_connection(apns);

@@ -302,7 +302,8 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
                 break;
             default:
             {
-                SSL_get_error(server->ssl, err);
+                LOG_SSL_ERROR(err);
+                //SSL_get_error(server->ssl, err);
                 return -1;
             }
         }

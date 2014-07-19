@@ -3,7 +3,11 @@
 
 #include <openssl/ssl.h>
 
+#include "../../lib/srdb1/db.h"
+
 #define ENABLE_FEEDBACK_SERVICE
+
+#define PUSH_TABLE_VERSION 1
 
 struct PushServer
 {
@@ -26,6 +30,8 @@ struct PushServer
     int      read_timeout; // usec
     int      write_timeout; // usec
 
+    db_func_t dbf;
+    db1_con_t *db;
 };
 
 typedef struct PushServer PushServer;
@@ -44,5 +50,8 @@ PushServer* create_push_server(const char *cert_file,
                                uint16_t port);
 void destroy_push_server(PushServer*);
 
+int push_check_db(PushServer* apns, const char* push_db, const char* push_table);
+
+int push_connect_db(PushServer* apns, const char* push_db, const char* push_table, int rank);
 
 #endif //PUSH_COMMON_H
