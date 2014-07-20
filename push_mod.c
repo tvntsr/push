@@ -62,6 +62,8 @@ static void stop_feedback_service();
 //int push_send_request(struct sip_msg *req, acc_info_t *inf);
 
 static int w_push_request(struct sip_msg *rq, const char *device_token);
+static int w_push_message(struct sip_msg *rq, const char *device_token, const char *message);
+static int w_push_register(struct sip_msg *rq, const char *device_token);
 static int w_push_status(struct sip_msg *rq, const char* device_token, int code);
 
 static int push_api_fixup(void** param, int param_no);
@@ -95,12 +97,18 @@ static char *push_table = "push";
 /*@}*/
 
 static PushServer* apns = 0;
-static uint32_t notification_id = 0;
 
 static cmd_export_t cmds[] = {
 	{"push_request", (cmd_function)w_push_request, 1,
      push_api_fixup, free_push_api_fixup,
      ANY_ROUTE},
+	{"push_register", (cmd_function)w_push_register, 1,
+     push_api_fixup, free_push_api_fixup,
+     ANY_ROUTE},
+	{"push_request", (cmd_function)w_push_message, 2,
+     push_api_fixup, free_push_api_fixup,
+     ANY_ROUTE},
+
 	{0, 0, 0, 0, 0, 0}
 };
 
@@ -168,7 +176,6 @@ get_callid(struct sip_msg* msg, str *cid)
 
     return 0;
 }
-
 
 /************************** INTERFACE functions ****************************/
 
@@ -306,16 +313,10 @@ static int free_push_api_fixup(void** param, int param_no)
 
 static int w_push_request(struct sip_msg *rq, const char *device_token)
 {
-    APNS_Payload* payload = NULL;
-    APNS_Item*    item;
-//    APNS_Frame*   frame;
-
-    char* message;
-
     str *ruri;
     str  callid;
-    size_t token_len = strlen(device_token);
 
+    size_t token_len = strlen(device_token);
     LM_DBG("Push request started, token %s\n", device_token);
     if (token_len != DEVICE_TOKEN_LEN)
     {
@@ -331,74 +332,97 @@ static int w_push_request(struct sip_msg *rq, const char *device_token)
         return -1;
     }
 
-    LM_DBG("token %s\n", device_token);
-    APNS_Notification* notification = create_notification();
-    if (notification == NULL)
+    if (-1 == push_send(apns,  device_token, apns_alert, callid.s, apns_badge))
     {
-        LM_ERR("Cannot create notification\n");
+        LM_ERR("Push notification failed, call id %s, device token %s\n",
+               callid.s, device_token);
         return -1;
     }
-    payload = calloc(1, sizeof(APNS_Payload));
-    if (payload == NULL)
-    {
-        LM_ERR("Cannot create payload\n");
-        destroy_notification(notification);
-        return -1;
-    }
-    payload->alert = strdup(apns_alert);
-    payload->call_id = strdup(callid.s);
-    payload->badge  = apns_badge;
-
-    item = create_item(payload);
-    if (item == NULL)
-    {
-        LM_ERR("Cannot create item\n");
-        destroy_notification(notification);
-        destroy_payload(payload);
-        return -1;
-    }
-    
-    memmove(item->token, device_token, DEVICE_TOKEN_LEN);
-    item->identifier = ++notification_id;
-
-    if (-1 == notification_add_item(notification, item))
-    {
-        LM_ERR("Cannot add item, return....\n");
-        destroy_notification(notification);
-        destroy_payload(payload);
-        return -1;
-    }
-    LM_DBG("item successfuly added, make a message\n");
-    message = make_push_msg(notification);
-    if (message == NULL)
-    {
-        LM_DBG("make_push_msg failed, destroy it\n");
-        destroy_notification(notification);
-        LM_DBG("Return -1\n");
-        return -1;
-    }
-
-    LM_DBG("Sending data to apns\n");
-
-    if (-1 == send_push_data(apns, message, notification->length))
-    {
-        LM_ERR("Push sending failed\n");
-    }
-
-    LM_DBG("OK\n");
-    free(message);
-    LM_DBG("Destroy\n");
-    destroy_notification(notification);
 
     LM_DBG("Success\n");
 
     return 1;
 }
 
+static int w_push_message(struct sip_msg *rq, const char *device_token, const char *message)
+{
+    str *ruri;
+    str  callid;
+
+    size_t token_len = strlen(device_token);
+    LM_DBG("Push request started, token %s, message %s\n", device_token, message);
+    if (token_len != DEVICE_TOKEN_LEN)
+    {
+        LM_ERR("Device token length wrong, reject push\n");
+        return -1;
+    }
+
+    // Working with sip message:
+    ruri = GET_RURI(rq);
+    if (-1 == get_callid(rq, &callid))
+    {
+        LM_ERR("Geting CallID failed, reject push\n");
+        return -1;
+    }
+
+    if (-1 == push_send(apns,  device_token, message, callid.s, apns_badge))
+    {
+        LM_ERR("Push notification failed, call id %s, device token %s, message %s\n",
+               callid.s, device_token, message);
+        return -1;
+    }
+
+    LM_DBG("Success\n");
+
+    return 1;
+}
+
+
+static int w_push_register(struct sip_msg *rq, const char *device_token)
+{
+    str *ruri;
+    str  callid;
+    char *aor = NULL;
+
+    size_t token_len = strlen(device_token);
+    LM_DBG("Push request started, token %s\n", device_token);
+    if (token_len != DEVICE_TOKEN_LEN)
+    {
+        LM_ERR("Device token length wrong, reject push\n");
+        return -1;
+    }
+
+    // :TODO:
+    // - extract AOR
+    // - check token
+    // - save records
+
+    // Working with sip message:
+    if (-1 == get_callid(rq, &callid))
+    {
+        LM_ERR("Geting CallID failed, reject push\n");
+        return -1;
+    }
+
+    if (-1 == push_register_device(apns, aor, device_token))
+    {
+        LM_ERR("Push device registration failed, call id %s, device token %s\n",
+               callid.s, device_token);
+        return -1;
+    }
+
+    LM_DBG("Success\n");
+
+    return 1;
+}
+
+
 static int w_push_status(struct sip_msg *rq, const char* device_token, int code)
 {
     return -1;
 }
+
+
 
 static void feedback_service(int fd)
 {

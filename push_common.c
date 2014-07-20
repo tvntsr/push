@@ -15,7 +15,10 @@
 
 #include "push_common.h"
 #include "push_ssl_utils.h"
+#include "push.h"
+#include "apns_feedback.h"
 
+static uint32_t notification_id = 0;
 
 PushServer* create_push_server(const char *cert_file, 
                                const char *cert_key, 
@@ -177,4 +180,83 @@ int push_connect_db(PushServer* apns, const char* push_db, const char* push_tabl
     }
 
     return 1;
+}
+
+int push_send(PushServer* apns,  const char *device_token, const char* alert, const char* call_id, int badge)
+{
+    APNS_Payload* payload = NULL;
+    APNS_Item*    item;
+
+    char* message;
+
+    LM_DBG("token %s\n", device_token);
+    APNS_Notification* notification = create_notification();
+    if (notification == NULL)
+    {
+        LM_ERR("Cannot create notification\n");
+        return -1;
+    }
+    payload = calloc(1, sizeof(APNS_Payload));
+    if (payload == NULL)
+    {
+        LM_ERR("Cannot create payload\n");
+        destroy_notification(notification);
+        return -1;
+    }
+    payload->alert   = strdup(alert);
+    payload->call_id = strdup(call_id);
+    payload->badge   = badge;
+
+    item = create_item(payload);
+    if (item == NULL)
+    {
+        LM_ERR("Cannot create item\n");
+        destroy_notification(notification);
+        destroy_payload(payload);
+        return -1;
+    }
+    
+    memmove(item->token, device_token, DEVICE_TOKEN_LEN);
+    item->identifier = ++notification_id;
+
+    if (-1 == notification_add_item(notification, item))
+    {
+        LM_ERR("Cannot add item, return....\n");
+        destroy_notification(notification);
+        destroy_payload(payload);
+        return -1;
+    }
+    LM_DBG("item successfuly added, make a message\n");
+    message = make_push_msg(notification);
+    if (message == NULL)
+    {
+        LM_DBG("make_push_msg failed, destroy it\n");
+        destroy_notification(notification);
+        LM_DBG("Return -1\n");
+        return -1;
+    }
+
+    LM_DBG("Sending data to apns\n");
+
+    if (-1 == send_push_data(apns, message, notification->length))
+    {
+        LM_ERR("Push sending failed\n");
+    }
+
+    LM_DBG("OK\n");
+    free(message);
+    LM_DBG("Destroy\n");
+    destroy_notification(notification);
+
+    LM_DBG("Success\n");
+
+    return 1;
+}
+
+
+int push_register_device(PushServer* apns, const char* contact, const char *device_token)
+{
+
+
+    return -1;
 }
