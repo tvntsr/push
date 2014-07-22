@@ -58,4 +58,6 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
 
 int push_register_device(PushServer* apns, const char* contact, const char *device_token);
 
+int push_get_device(PushServer* apns, const char* aor, const char** device_token);
+
 #endif //PUSH_COMMON_H

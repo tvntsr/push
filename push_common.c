@@ -256,7 +256,48 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
 
 int push_register_device(PushServer* apns, const char* contact, const char *device_token)
 {
+#define DB_PUSH_COLUMNS 2
+    db_key_t key[DB_PUSH_COLUMNS];
+    db_val_t value[DB_PUSH_COLUMNS];
 
+    int columns = DB_PUSH_COLUMNS;
+
+    str aor_key = str_init("aor");
+    str device_id_key = str_init("device_id");
+
+    if (apns == NULL)
+        return -1;
+
+    if (apns->dbf.init == NULL)
+    {
+        LM_ERR("Database was not initialed, reject push registration\n");
+        return -1;
+    }
+    
+    key[0] = &aor_key;
+    key[1] = &device_id_key;
+
+    value[0].type = DB1_STRING;
+    value[0].nul = 0;
+    value[1].val.string_val = contact;
+
+    value[1].type = DB1_STRING;
+    value[1].nul = 0;
+    value[1].val.string_val = device_token;
+
+    // Update table
+    int result = apns->dbf.insert_update(apns->db, key, value, columns);
+    if (result != 0)
+    {
+        LM_ERR("Database error, cannot store push registration\n");
+        return -1;
+    }
+
+    return 1;
+}
+
+int push_get_device(PushServer* apns, const char* aor, const char** device_token)
+{
 
     return -1;
 }
