@@ -12,6 +12,8 @@
 #include <sys/time.h>
 
 #include "../../dprint.h"
+#include "../../lib/srdb1/db_val.h"
+//#include "../../lib/srdb1/db_op.h"
 
 #include "push_common.h"
 #include "push_ssl_utils.h"
@@ -254,6 +256,79 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
 }
 
 
+int push_get_device(PushServer* apns, const char* aor, const char** device_token)
+{
+
+#define DB_PUSH_COLUMNS 2
+    db_key_t query_cols[1];
+    db_op_t  query_ops[1];
+    db_val_t query_vals[1];
+
+    db_key_t result_cols[1];
+    db1_res_t *result = NULL;
+    db_row_t *row = NULL ;   
+    db_val_t *row_vals = NULL;
+
+    str aor_key = str_init("aor");
+    str device_id_key = str_init("device_id");
+
+    if (apns == NULL)
+        return -1;
+
+    if (apns->dbf.init == NULL)
+    {
+        LM_ERR("Database was not initialed, reject push registration\n");
+        return -1;
+    }
+
+    query_cols[0] = &aor_key;
+
+    query_ops[0] = OP_EQ;
+
+    query_vals[0].type = DB1_STRING;
+    query_vals[0].nul = 0;
+    query_vals[0].val.string_val = aor;
+
+    result_cols[0] = &device_id_key;
+
+    // Update table
+    if (apns->dbf.query (apns->db, query_cols, query_ops, query_vals,
+                         result_cols, 1, 1, 0,  &result) < 0)
+    {
+        LM_ERR("Database error, cannot get push registration\n");
+        goto error;
+    }
+
+    if (result == NULL )
+    {
+        goto error;
+    }
+
+    if (result->n <= 0)
+    {
+        LM_DBG("The query in db table for push"
+               " returned no result\n");
+        apns->dbf.free_result(apns->db, result);
+        return 0;
+    }
+
+    // Take first record only
+    row = &result->rows[0];
+    row_vals = ROW_VALUES(row);
+
+    device_token = strdup((char*)row_vals[0].val.string_val);
+
+    apns->dbf.free_result(apns->db, result);
+
+    return 1;
+  error:
+    if (result)
+        apns->dbf.free_result(apns->db, result);
+
+    return -1;
+}
+
+
 int push_register_device(PushServer* apns, const char* contact, const char *device_token)
 {
 #define DB_PUSH_COLUMNS 2
@@ -292,12 +367,6 @@ int push_register_device(PushServer* apns, const char* contact, const char *devi
         LM_ERR("Database error, cannot store push registration\n");
         return -1;
     }
-
-    return 1;
-}
-
-int push_get_device(PushServer* apns, const char* aor, const char** device_token)
-{
 
     return -1;
 }
