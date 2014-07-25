@@ -39,8 +39,6 @@
 #include "../../mem/mem.h"
 #include "../../parser/parse_to.h"
 #include "../../parser/parse_uri.h"
-//#include "../../lib/kcore/radius.h"
-//#include "../../modules/acc/acc_api.h"
 #include "../../cfg/cfg_struct.h"
 
 #include "push_mod.h"
@@ -59,9 +57,6 @@ static int child_init(int rank);
 static void feedback_service(int fd);
 static void stop_feedback_service();
 
-//int push_init(acc_init_info_t *inf);
-//int push_send_request(struct sip_msg *req, acc_info_t *inf);
-
 static int w_push_request(struct sip_msg *rq, const char *device_token);
 static int w_push_message(struct sip_msg *rq, const char *device_token, const char *message);
 static int w_push_register(struct sip_msg *rq, const char *device_token);
@@ -70,8 +65,6 @@ static int w_push_status(struct sip_msg *rq, const char* device_token, int code)
 
 static int push_api_fixup(void** param, int param_no);
 static int free_push_api_fixup(void** param, int param_no);
-
-//static int establish_connection();
 
 /* ----- PUSH variables ----------- */
 /*@{*/
@@ -209,7 +202,6 @@ int extract_aor(str* _uri, str* _a, sip_uri_t *_pu)
 		puri = &turi;
 
 	if (parse_uri(uri->s, uri->len, puri) < 0) {
-//		rerrno = R_AOR_PARSE;
 		LM_ERR("failed to parse AoR [%.*s]\n", uri->len, uri->s);
 		return -1;
 	}
@@ -217,7 +209,6 @@ int extract_aor(str* _uri, str* _a, sip_uri_t *_pu)
 	if ( (puri->user.len + puri->host.len + 1) > MAX_AOR_LEN
          || puri->user.len > USERNAME_MAX_SIZE
          ||  puri->host.len > DOMAIN_MAX_SIZE ) {
-//		rerrno = R_AOR_LEN;
 		LM_ERR("Address Of Record too long\n");
 		return -2;
 	}
@@ -226,7 +217,6 @@ int extract_aor(str* _uri, str* _a, sip_uri_t *_pu)
 	_a->len = puri->user.len;
 
 	if (un_escape(&puri->user, _a) < 0) {
-//		rerrno = R_UNESCAPE;
 		LM_ERR("failed to unescape username\n");
 		return -3;
 	}
@@ -352,7 +342,6 @@ static int child_init(int rank)
         return -1;
     }
 
-
     if (push_flag == ConnectEstablish)
         return establish_ssl_connection(apns);
 
@@ -361,6 +350,7 @@ static int child_init(int rank)
 
 	return 0;
 }
+
 
 static void destroy(void)
 {
@@ -374,6 +364,7 @@ static void destroy(void)
 
     //ssl_shutdown();
 }
+
 
 static int push_api_fixup(void** param, int param_no)
 {
@@ -390,6 +381,7 @@ static int push_api_fixup(void** param, int param_no)
 	return 0;
 }
 
+
 static int free_push_api_fixup(void** param, int param_no)
 {
     LM_DBG("Push free_push_api_fixup\n");
@@ -402,9 +394,10 @@ static int free_push_api_fixup(void** param, int param_no)
     return 0;
 }
 
+
 static int w_push_request(struct sip_msg *rq, const char *device_token)
 {
-    str *ruri;
+//    str *ruri;
     str  callid;
 
     size_t token_len = strlen(device_token);
@@ -435,9 +428,10 @@ static int w_push_request(struct sip_msg *rq, const char *device_token)
     return 1;
 }
 
+
 static int w_push_message(struct sip_msg *rq, const char *device_token, const char *message)
 {
-    str *ruri;
+//    str *ruri;
     str  callid;
 
     size_t token_len = strlen(device_token);
@@ -471,7 +465,6 @@ static int w_push_message(struct sip_msg *rq, const char *device_token, const ch
 
 static int w_push_register(struct sip_msg *rq, const char *device_token)
 {
-    //str *ruri;
     str  callid;
     str uri, aor;
 
@@ -482,12 +475,6 @@ static int w_push_register(struct sip_msg *rq, const char *device_token)
         LM_ERR("Device token length wrong, reject push\n");
         return -1;
     }
-
-    // :TODO:
-    // - extract AOR
-    // - check token
-    // - save records
-
     // Working with sip message:
     if (-1 == get_callid(rq, &callid))
     {
@@ -497,11 +484,13 @@ static int w_push_register(struct sip_msg *rq, const char *device_token)
 
     uri = rq->first_line.u.request.uri;
 
+    LM_DBG("Push request, URI %s, token %s\n", uri.s, device_token);
+
     if (extract_aor(&uri, &aor, NULL) < 0) {
         LM_ERR("failed to extract address of record\n");
         return -1;
     }
-
+    LM_DBG("Push request, AOR %s, token %s\n", aor.s, device_token);
 
     if (-1 == push_register_device(apns, aor.s, device_token))
     {
@@ -524,11 +513,6 @@ static int w_push_msg(struct sip_msg *rq, const char* msg)
 
     str  callid;
 
-    // :TODO:
-    // - extract AOR
-    // - get token
-    // - send the push notification
-
     if (-1 == get_callid(rq, &callid))
     {
         LM_ERR("Geting CallID failed, reject push\n");
@@ -540,12 +524,16 @@ static int w_push_msg(struct sip_msg *rq, const char* msg)
         LM_ERR("Parsing TO header failed, reject push\n");
         return -1;
     }
+    
     to = get_to(rq);
 
-    if (extract_aor(&to->uri, &aor, NULL) < 0) {
+    if (extract_aor(&to->uri, &aor, NULL) < 0) 
+    {
         LM_ERR("failed to extract address of record\n");
         return -1;
     }
+
+    LM_DBG("Send push message, aor [%s], getting token...\n", aor.s);
 
     if (-1 == push_get_device(apns, aor.s, &device_token))
     {
@@ -553,6 +541,9 @@ static int w_push_msg(struct sip_msg *rq, const char* msg)
                callid.s);
         return -1;
     }
+
+    LM_DBG("Sending push message, aor [%s], token [%s], msg [%s], callid [%s], badge [%d]...\n", 
+           aor.s, device_token, msg, callid.s, apns_badge);
 
     if (-1 == push_send(apns, device_token, msg, callid.s, apns_badge))
     {
@@ -567,8 +558,6 @@ static int w_push_msg(struct sip_msg *rq, const char* msg)
     LM_DBG("Success\n");
 
     return 1;
-
-
 }
 
 
@@ -576,7 +565,6 @@ static int w_push_status(struct sip_msg *rq, const char* device_token, int code)
 {
     return -1;
 }
-
 
 
 static void feedback_service(int fd)
@@ -607,6 +595,7 @@ static void feedback_service(int fd)
 
     run_feedback(feedback, fd);
 }
+
 
 static void stop_feedback_service()
 {

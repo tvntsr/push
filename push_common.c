@@ -1,3 +1,15 @@
+/*
+ * $Id$
+ * 
+ * APNs support module
+ *
+ * Copyright (C) 2013 Volodymyr Tarasenko
+ *
+ * This file is part of Kamailio, a free SIP server.
+ *
+ *
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <memory.h>
@@ -13,7 +25,6 @@
 
 #include "../../dprint.h"
 #include "../../lib/srdb1/db_val.h"
-//#include "../../lib/srdb1/db_op.h"
 
 #include "push_common.h"
 #include "push_ssl_utils.h"
@@ -128,11 +139,13 @@ int push_check_db(PushServer* apns, const char* push_db, const char* push_table)
         LM_ERR("Connection to database failed\n");
         return -1;
     }
+
     if (db_check_table_version(&apns->dbf, apns->db, &table, PUSH_TABLE_VERSION) < 0) 
     {
         LM_ERR("wrong table version for %s\n", table.s);
         return -1;
     }
+
     apns->dbf.close(apns->db);
     apns->db = NULL;
 
@@ -141,18 +154,10 @@ int push_check_db(PushServer* apns, const char* push_db, const char* push_table)
 
 int push_connect_db(PushServer* apns, const char* push_db, const char* push_table, int rank)
 {
-    /* db1_con_t *p_db = NULL; */
-    /* db_func_t p_dbf; */
-
     str db_url = {0, 0};
     str table = {0, 0};
 
-    if (apns == NULL)
-    {
-        return 0;
-    }
-
-    if (push_db == NULL)
+    if (apns == NULL || push_db == NULL)
     {
         return 0;
     }
@@ -258,8 +263,6 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
 
 int push_get_device(PushServer* apns, const char* aor, const char** device_token)
 {
-
-#define DB_PUSH_COLUMNS 2
     db_key_t query_cols[1];
     db_op_t  query_ops[1];
     db_val_t query_vals[1];
@@ -273,13 +276,17 @@ int push_get_device(PushServer* apns, const char* aor, const char** device_token
     str device_id_key = str_init("device_id");
 
     if (apns == NULL)
+    {
+        LM_ERR("Push service was not initialed, reject push registration\n");
         return -1;
-
+    }
     if (apns->dbf.init == NULL)
     {
         LM_ERR("Database was not initialed, reject push registration\n");
         return -1;
     }
+
+    LM_DBG("Preparing DB request for %s\n", aor);
 
     query_cols[0] = &aor_key;
 
@@ -301,22 +308,26 @@ int push_get_device(PushServer* apns, const char* aor, const char** device_token
 
     if (result == NULL )
     {
+        LM_ERR("Push DB request for %s failed\n", aor);
         goto error;
     }
 
+
     if (result->n <= 0)
     {
-        LM_DBG("The query in db table for push"
-               " returned no result\n");
+        LM_DBG("The query in db table for push returned no result\n");
         apns->dbf.free_result(apns->db, result);
         return 0;
     }
 
+    LM_DBG("Got DB response for %s\n", aor);
     // Take first record only
     row = &result->rows[0];
     row_vals = ROW_VALUES(row);
 
-    device_token = strdup((char*)row_vals[0].val.string_val);
+    *device_token = strdup((char*)row_vals[0].val.string_val);
+
+    LM_DBG("Device token for %s is [%s]\n", aor, *device_token);
 
     apns->dbf.free_result(apns->db, result);
 
@@ -336,12 +347,16 @@ int push_register_device(PushServer* apns, const char* contact, const char *devi
     db_val_t value[DB_PUSH_COLUMNS];
 
     int columns = DB_PUSH_COLUMNS;
+    int result = 0;
 
     str aor_key = str_init("aor");
     str device_id_key = str_init("device_id");
 
     if (apns == NULL)
+    {
+        LM_ERR("Push service was not initialed, reject push registration\n");
         return -1;
+    }
 
     if (apns->dbf.init == NULL)
     {
@@ -361,12 +376,14 @@ int push_register_device(PushServer* apns, const char* contact, const char *devi
     value[1].val.string_val = device_token;
 
     // Update table
-    int result = apns->dbf.insert_update(apns->db, key, value, columns);
+    result = apns->dbf.insert_update(apns->db, key, value, columns);
     if (result != 0)
     {
         LM_ERR("Database error, cannot store push registration\n");
         return -1;
     }
 
-    return -1;
+    LM_DBG("Push DB was updated, contact %s, token [%s], result [%d]\n",contact, device_token, result);
+
+    return 1;
 }
