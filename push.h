@@ -41,8 +41,13 @@ typedef struct APNS_Payload APNS_Payload;
 
 struct APNS_Item
 {
-#define DEVICE_TOKEN_LEN 32
-    char token[DEVICE_TOKEN_LEN];/* 32 bytes, The device token in binary form, 
+#define DEVICE_TOKEN_LEN_STR 64
+#define DEVICE_TOKEN_LEN_BIN 32
+
+#define PUSH_MAX_PRIO 10
+#define PUSH_MIN_PRIO 0
+
+    char token[DEVICE_TOKEN_LEN_BIN];/* 32 bytes, The device token in binary form, 
                       as was registered by the device. */
 
     APNS_Payload* payload; /* variable length, less than or equal to 256 bytes,
@@ -105,7 +110,7 @@ void destroy_notification(APNS_Notification*);
 
 int notification_add_item(APNS_Notification* to, APNS_Item* data);
 
-APNS_Item* create_item(APNS_Payload* payload);
+APNS_Item* create_item(APNS_Payload* payload, unsigned char prio);
 void destroy_item(APNS_Item*);
 
 void destroy_payload(APNS_Payload*);

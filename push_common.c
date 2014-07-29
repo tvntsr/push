@@ -33,6 +33,53 @@
 
 static uint32_t notification_id = 0;
 
+static char char2bin(const char ch)
+{
+    if (ch >='0' && ch <= '9')
+        return ch - 0x30;
+
+    switch(tolower(ch))
+    {
+        case 'a':
+            return 0x0a;
+        case 'b':
+            return 0x0b;
+        case 'c':
+            return 0x0c;
+        case 'd':
+            return 0x0d;
+        case 'e':
+            return 0x0e;
+        case 'f':
+            return 0x0f;
+    }
+
+    return 0xff;
+}
+static int str2bin(const char* str, char bin[DEVICE_TOKEN_LEN_BIN])
+{
+    char l;
+    char h;
+
+    int i;
+
+    if (strlen(str) != DEVICE_TOKEN_LEN_STR)
+    {
+        LM_ERR("Cannot handle device token: wrong length, return....\n");
+        return 0;
+    }
+
+    for( i = 0; i < DEVICE_TOKEN_LEN_BIN; ++i)
+    {
+        h = str[2*i];
+        l = str[2*i +1];
+        bin[i] = (char2bin(h) << 4) + char2bin(l);
+    }
+
+    return i;
+}
+
+
 PushServer* create_push_server(const char *cert_file, 
                                const char *cert_key, 
                                const char *cert_ca,
@@ -214,7 +261,7 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
     payload->call_id = strdup(call_id);
     payload->badge   = badge;
 
-    item = create_item(payload);
+    item = create_item(payload, PUSH_MAX_PRIO);
     if (item == NULL)
     {
         LM_ERR("Cannot create item\n");
@@ -223,7 +270,10 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
         return -1;
     }
     
-    memmove(item->token, device_token, DEVICE_TOKEN_LEN);
+//    memmove(item->token, device_token, DEVICE_TOKEN_LEN);
+
+    str2bin(device_token, item->token);
+
     item->identifier = ++notification_id;
 
     if (-1 == notification_add_item(notification, item))

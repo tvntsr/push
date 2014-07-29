@@ -402,7 +402,7 @@ static int w_push_request(struct sip_msg *rq, const char *device_token)
 
     size_t token_len = strlen(device_token);
     LM_DBG("Push request started, token %s\n", device_token);
-    if (token_len != DEVICE_TOKEN_LEN)
+    if (token_len != DEVICE_TOKEN_LEN_STR)
     {
         LM_ERR("Device token length wrong, reject push\n");
         return -1;
@@ -436,7 +436,7 @@ static int w_push_message(struct sip_msg *rq, const char *device_token, const ch
 
     size_t token_len = strlen(device_token);
     LM_DBG("Push request started, token %s, message %s\n", device_token, message);
-    if (token_len != DEVICE_TOKEN_LEN)
+    if (token_len != DEVICE_TOKEN_LEN_STR)
     {
         LM_ERR("Device token length wrong, reject push\n");
         return -1;
@@ -470,7 +470,7 @@ static int w_push_register(struct sip_msg *rq, const char *device_token)
 
     size_t token_len = strlen(device_token);
     LM_DBG("Push request started, token %s\n", device_token);
-    if (token_len != DEVICE_TOKEN_LEN)
+    if (token_len != DEVICE_TOKEN_LEN_STR)
     {
         LM_ERR("Device token length wrong, reject push\n");
         return -1;

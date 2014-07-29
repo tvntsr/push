@@ -53,7 +53,7 @@ static void destroy_frame(APNS_Frame* );
 
 
 
-static int  print_item_msg(APNS_Item* payload, char* buff, size_t size)
+static int print_item_msg(APNS_Item* payload, char* buff, size_t size)
 {
     if (payload == NULL)
         return 0;
@@ -62,16 +62,16 @@ static int  print_item_msg(APNS_Item* payload, char* buff, size_t size)
     if (size == 0)
         return 0;
 
-    if (size < DEVICE_TOKEN_LEN)
+    if (size < DEVICE_TOKEN_LEN_BIN)
         return 0;
 
-    int printed = DEVICE_TOKEN_LEN;
+    int printed = DEVICE_TOKEN_LEN_BIN;
     int ret;
     uint32_t t;
 
     LM_DBG("print item\n");
 
-    memmove(buff, payload->token, DEVICE_TOKEN_LEN);
+    memmove(buff, payload->token, DEVICE_TOKEN_LEN_BIN);
 
     ret = print_payload_msg(payload->payload, buff+printed, size-printed);
     if (ret == 0)
@@ -316,13 +316,15 @@ static void destroy_frame(APNS_Frame* frame)
 }
 
 
-APNS_Item* create_item(APNS_Payload* payload)
+APNS_Item* create_item(APNS_Payload* payload, unsigned char prio)
 {
     APNS_Item* item = (APNS_Item*)calloc(1, sizeof(APNS_Item));
     if (item)
     {
         item->payload = payload;
+        item->priority = prio;
     }
+
 
     return item;
 }
