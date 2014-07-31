@@ -79,6 +79,25 @@ static int str2bin(const char* str, char bin[DEVICE_TOKEN_LEN_BIN])
     return i;
 }
 
+static int bin2str(const char* bin, size_t bin_len, char** buf)
+{
+    int i;
+    char * b = (char*)malloc(bin_len*2+1);
+
+    if (b == NULL)
+    {
+        return -1;
+    }
+
+    *buf = b;
+
+    for(i = 0; i < bin_len; ++i)
+    {
+        snprintf(b, 3, "%02X", bin[i]&0xff);
+        b+=2;
+    }
+    return 1;
+}
 
 PushServer* create_push_server(const char *cert_file, 
                                const char *cert_key, 
@@ -293,7 +312,13 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
         return -1;
     }
 
-    LM_DBG("Sending data to apns\n");
+    {
+        char *buf;
+        bin2str(message, notification->length, &buf);
+
+        LM_DBG("Sending data to apns: [%s], length %d\n", buf, notification->length);
+        free(buf);
+    }
 
     if (-1 == send_push_data(apns, message, notification->length))
     {

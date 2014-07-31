@@ -42,7 +42,7 @@ static int  print_payload_msg(APNS_Payload* payload, char* buff, size_t size)
                            "{\"aps\":{\"alert\":\"%s\"}}",  
                            payload->alert);
 
-    fprintf(stderr, "Payload: %s\n", buff);
+    LM_DBG("Payload: [%s], total %d\n", buff, printed);
     return printed;
 }
 
@@ -93,7 +93,7 @@ static int print_item_msg(APNS_Item* payload, char* buff, size_t size)
 
     printed += sizeof(payload->expiration);
     buff[printed] = payload->priority;
-
+    LM_DBG("Priority: %02X, id: %04X, printed total: %d\n", ((unsigned)payload->priority) & 0xff, payload->identifier, printed +1);
     return printed + 1;
 }
 
@@ -110,7 +110,7 @@ static char* make_frame_msg(APNS_Frame* frame)
     // prio      1
     // total    297
     // Frame: + 1 (number) + 2 (length)
-    // Toatal:  300
+    // Total:  300
     #define FRAME_BUFFER_SIZE 300
     #define CHUNK_OFFSET 3
 
@@ -120,6 +120,7 @@ static char* make_frame_msg(APNS_Frame* frame)
     LM_DBG("Making the frame\n");
 
     char * chunk = (char*)malloc(FRAME_BUFFER_SIZE);
+    uint16_t l;
     if (chunk != NULL)
     {
         chunk[0] = frame->number;
@@ -131,6 +132,9 @@ static char* make_frame_msg(APNS_Frame* frame)
             free(chunk);
             chunk = NULL;
         }
+        l = htons(frame->length);
+        memcpy(chunk+1, &l, sizeof(l));
+
     }
     if (frame->_chunk)
         free(frame->_chunk);
@@ -144,7 +148,7 @@ static char* make_frame_msg(APNS_Frame* frame)
 char* make_push_msg(APNS_Notification* notification)
 {
 #define NOTIFICATION_COMMAND (char)2
-#define NOTIFICATION_OFFSET  3
+#define NOTIFICATION_OFFSET  5
 
     char* buffer;
     APNS_Frame* frame = NULL;
@@ -179,14 +183,15 @@ char* make_push_msg(APNS_Notification* notification)
             return NULL;
         }
 
-        notification->length += frame->length;
+        notification->length += frame->length + CHUNK_OFFSET;
         
+        LM_DBG("Chunk %d, length %d, total: %d\n", count, frame->length, notification->length);
         frame = frame->next;
         ++count ;
     }
 
     LM_DBG("Push message length calculated (%u bytes), total %d frames, printing it\n",
-           notification->length, count);
+           notification->length, count-1);
     // Fill the buffer
     buffer = (char*)malloc(notification->length+NOTIFICATION_OFFSET);
     if (buffer == NULL)
@@ -207,7 +212,7 @@ char* make_push_msg(APNS_Notification* notification)
     while(frame != NULL)
     {
         LM_DBG("Adding %d frame\n", frame->number);
-        memmove(buffer+printed, frame->_chunk, frame->length);
+        memmove(buffer+printed, frame->_chunk, frame->length + CHUNK_OFFSET);
         printed += frame->length;
 
         frame = frame->next;

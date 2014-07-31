@@ -58,7 +58,7 @@ struct APNS_Item
                           An arbitrary, opaque value that identifies this 
                           notification. This identifier is used for reporting
                           errors to your server. */
-    time_t   expiration;/* 4 bytes
+    uint32_t  expiration;/* 4 bytes
                            A UNIX epoch date expressed in seconds (UTC) 
                            that identifies when the notification is no 
                            longer valid and can be discarded.

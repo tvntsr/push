@@ -268,7 +268,7 @@ static void read_status(PushServer* server)
 
     memcpy(status_buf+2, &id, sizeof(id));
 
-    LM_INFO("Status message for %d: response status: %c", 
+    LM_INFO("Status message for %d: response status: [%01x]", 
             ntohl(id), 
             status_buf[1]);
 }
@@ -300,8 +300,11 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
             case SSL_ERROR_NONE:
                 written += err;
                 break;
+            case SSL_ERROR_WANT_WRITE:
+                break;
             default:
             {
+                LM_DBG("Open SSL error, %d\n", err);
                 LOG_SSL_ERROR(err);
                 //SSL_get_error(server->ssl, err);
                 return -1;
