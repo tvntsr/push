@@ -370,7 +370,7 @@ static int push_api_fixup(void** param, int param_no)
 {
 	char *p;
 
-    LM_DBG("Push push_api_fixup\n");
+    LM_DBG("Push push_api_fixup, param %d\n", param_no);
 
 	p = (char*)*param;
 	if (p==0 || p[0]==0) {
@@ -384,7 +384,7 @@ static int push_api_fixup(void** param, int param_no)
 
 static int free_push_api_fixup(void** param, int param_no)
 {
-    LM_DBG("Push free_push_api_fixup\n");
+    LM_DBG("Push free_push_api_fixup, param %d\n", param_no);
 	/* if(*param) */
 	/* { */
 	/* 	pkg_free(*param); */
@@ -482,7 +482,7 @@ static int w_push_register(struct sip_msg *rq, const char *device_token)
         return -1;
     }
 
-    uri = rq->first_line.u.request.uri;
+    uri = get_to(rq)->uri; //rq->first_line.u.request.uri;
 
     LM_DBG("Push request, URI %s, token %s\n", uri.s, device_token);
 

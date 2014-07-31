@@ -433,7 +433,7 @@ int extended_read(PushServer* server,
             default:
                 break;
         }
-        if (FD_ISSET(comm_sock, &readfds))
+        if (comm_sock != -1 && FD_ISSET(comm_sock, &readfds))
         {
             read(comm_sock,buffer, 1);
             return COMM_SOCK_OP;

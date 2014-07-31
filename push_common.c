@@ -402,6 +402,8 @@ int push_register_device(PushServer* apns, const char* contact, const char *devi
     str aor_key = str_init("aor");
     str device_id_key = str_init("device_id");
 
+    LM_DBG("Push register device for %s, token %s\n", contact, device_token);
+    
     if (apns == NULL)
     {
         LM_ERR("Push service was not initialed, reject push registration\n");
@@ -424,6 +426,8 @@ int push_register_device(PushServer* apns, const char* contact, const char *devi
     value[1].type = DB1_STRING;
     value[1].nul = 0;
     value[1].val.string_val = device_token;
+
+    LM_DBG("Push register device, dbf.insert %p, db %p\n", apns->dbf.insert_update, apns->db);
 
     // Update table
     result = apns->dbf.insert_update(apns->db, key, value, columns);
