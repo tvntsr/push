@@ -1,8 +1,19 @@
 #ifndef _PUSH_DATA_H
 #define _PUSH_DATA_H
 
+enum ItemID
+{
+    DeviceTokenID  = 1,
+    PayloadID      = 2,
+    NotificationID = 3,
+    ExpDateID      = 4,
+    PriorityID     = 5
+};
+
 struct APNS_Payload
 {
+#define PAYLOAD_MAX_LEN 256
+
     char *alert; /* string or dictionary
                     If this property is included, the system displays a 
                     standard alert. You may specify a string as the value 

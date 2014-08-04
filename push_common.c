@@ -179,10 +179,10 @@ int push_check_db(PushServer* apns, const char* push_db, const char* push_table)
         return 0;
     }
 
-    db_url.s = push_db;
+    db_url.s = (char*)push_db;
     db_url.len = strlen(db_url.s);
 
-    table.s = push_table;
+    table.s = (char*)push_table;
     table.len = strlen(push_table);
 
     if ((apns->dbf.init == 0) && (db_bind_mod(&db_url, &apns->dbf)))
@@ -228,10 +228,10 @@ int push_connect_db(PushServer* apns, const char* push_db, const char* push_tabl
         return 0;
     }
 
-    db_url.s = push_db;
+    db_url.s = (char*)push_db;
     db_url.len = strlen(db_url.s);
 
-    table.s = push_table;
+    table.s = (char*)push_table;
     table.len = strlen(push_table);
 
     if ((apns->dbf.init == 0) && db_bind_mod(&db_url, &apns->dbf))
@@ -255,7 +255,7 @@ int push_connect_db(PushServer* apns, const char* push_db, const char* push_tabl
     return 1;
 }
 
-int push_send(PushServer* apns,  const char *device_token, const char* alert, const char* call_id, int badge)
+int push_send(PushServer* apns,  const char *device_token, const char* alert, const str* call_id, int badge)
 {
     APNS_Payload* payload = NULL;
     APNS_Item*    item;
@@ -277,7 +277,7 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
         return -1;
     }
     payload->alert   = strdup(alert);
-    payload->call_id = strdup(call_id);
+    payload->call_id = strndup(call_id->s, call_id->len);
     payload->badge   = badge;
 
     item = create_item(payload, PUSH_MAX_PRIO);
@@ -288,8 +288,6 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
         destroy_payload(payload);
         return -1;
     }
-    
-//    memmove(item->token, device_token, DEVICE_TOKEN_LEN);
 
     str2bin(device_token, item->token);
 
@@ -336,8 +334,10 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
 }
 
 
-int push_get_device(PushServer* apns, const char* aor, const char** device_token)
+int push_get_device(PushServer* apns, const char* aor, const char** device_token, const char* tbl)
 {
+    str table = {0, 0};
+
     db_key_t query_cols[1];
     db_op_t  query_ops[1];
     db_val_t query_vals[1];
@@ -349,6 +349,9 @@ int push_get_device(PushServer* apns, const char* aor, const char** device_token
 
     str aor_key = str_init("aor");
     str device_id_key = str_init("device_id");
+
+    table.s = (char*)tbl;
+    table.len = strlen(tbl);
 
     if (apns == NULL)
     {
@@ -372,6 +375,12 @@ int push_get_device(PushServer* apns, const char* aor, const char** device_token
     query_vals[0].val.string_val = aor;
 
     result_cols[0] = &device_id_key;
+
+    if (apns->dbf.use_table(apns->db, &table) < 0)
+    {
+        LM_ERR( "unsuccessful use_table push_table\n");
+        return -1;
+    }
 
     // Update table
     if (apns->dbf.query (apns->db, query_cols, query_ops, query_vals,
@@ -415,17 +424,23 @@ int push_get_device(PushServer* apns, const char* aor, const char** device_token
 }
 
 
-int push_register_device(PushServer* apns, const char* contact, const char *device_token)
+int push_register_device(PushServer* apns, const char* contact, const char *device_token, const str* callid, const char* tbl)
 {
-#define DB_PUSH_COLUMNS 2
+#define DB_PUSH_COLUMNS 3
+    str table = {0, 0};
+
     db_key_t key[DB_PUSH_COLUMNS];
     db_val_t value[DB_PUSH_COLUMNS];
 
     int columns = DB_PUSH_COLUMNS;
-    int result = 0;
+    int result  = 0;
 
-    str aor_key = str_init("aor");
+    str aor_key       = str_init("aor");
     str device_id_key = str_init("device_id");
+    str call_id_key   = str_init("callid");
+
+    table.s = (char*)tbl;
+    table.len = strlen(tbl);
 
     LM_DBG("Push register device for %s, token %s\n", contact, device_token);
     
@@ -443,16 +458,27 @@ int push_register_device(PushServer* apns, const char* contact, const char *devi
     
     key[0] = &aor_key;
     key[1] = &device_id_key;
+    key[2] = &call_id_key;
 
     value[0].type = DB1_STRING;
     value[0].nul = 0;
-    value[1].val.string_val = contact;
+    value[0].val.string_val = contact;
 
     value[1].type = DB1_STRING;
     value[1].nul = 0;
     value[1].val.string_val = device_token;
 
-    LM_DBG("Push register device, dbf.insert %p, db %p\n", apns->dbf.insert_update, apns->db);
+    value[2].type = DB1_STR;
+    value[2].nul = 0;
+    value[2].val.str_val = *callid;
+
+    LM_DBG("Push register device, table %s, dbf.insert %p, db %p\n", table.s, apns->dbf.insert_update, apns->db);
+
+    if (apns->dbf.use_table(apns->db, &table) < 0)
+    {
+        LM_ERR( "unsuccessful use_table push_table\n");
+        return -1;
+    }
 
     // Update table
     result = apns->dbf.insert_update(apns->db, key, value, columns);

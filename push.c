@@ -20,12 +20,22 @@
 // chunk should be released by free()
 static char* make_frame_msg(APNS_Frame* frame);
 
+// print item to buffer accroding to the spec:
+// id:len:item
+static int print_item(char* buff_to, int item_id, char* from, size_t from_len);
+
 // prints poayload to buffer
 // return 0 on success, 
 // on error: 
 //   -1 small buffer
 //   -2 payload string too long (limit is 256 chars)
 static int  print_payload_msg(APNS_Payload* payload, char* buff, size_t size);
+
+
+static int notification_add_frame(APNS_Notification* to, APNS_Frame* frame);
+
+static APNS_Frame* create_frame(APNS_Item* item);
+static void destroy_frame(APNS_Frame* );
 
 static int  print_payload_msg(APNS_Payload* payload, char* buff, size_t size)
 {
@@ -34,27 +44,46 @@ static int  print_payload_msg(APNS_Payload* payload, char* buff, size_t size)
     // it cannot be compound value, only message
     if (payload == NULL)
         return -1;
+
     if (payload->alert == NULL)
         return -1;
 
     int printed = snprintf(buff, size, 
 //                           "{\"aps\":{\"alert\":\"%s\"},\"call-id\":\"%s\"}",
-                           "{\"aps\":{\"alert\":\"%s\"}}",  
+                           "{\"aps\":{\"alert\":{\"body\":\"%s\"}}}",  
                            payload->alert);
 
     LM_DBG("Payload: [%s], total %d\n", buff, printed);
     return printed;
 }
 
-static int notification_add_frame(APNS_Notification* to, APNS_Frame* frame);
+static int print_item(char* buff_to, int item_id, char* from, size_t from_len)
+{
+    char* ptr     = buff_to;
+    char ID       = item_id & 0xff;
+    uint16_t len  = htons(from_len);
+    int res;
 
-static APNS_Frame* create_frame(APNS_Item* item);
-static void destroy_frame(APNS_Frame* );
+    memmove(ptr, &ID, 1);
+    ptr += 1;
 
+    memmove(ptr, &len, sizeof(len));
+    ptr += sizeof(len);
+    
+    memmove(ptr, from, from_len);
+    res = from_len + 1 + sizeof(len);
 
+    LM_DBG("printed item %d, result len %d\n", item_id, res);    
+    return res;
+}
 
 static int print_item_msg(APNS_Item* payload, char* buff, size_t size)
 {
+    int printed = 0;
+    int ret;
+    uint32_t t;
+    char msg_buf[PAYLOAD_MAX_LEN + 1];
+
     if (payload == NULL)
         return 0;
     if (buff == NULL)
@@ -65,36 +94,29 @@ static int print_item_msg(APNS_Item* payload, char* buff, size_t size)
     if (size < DEVICE_TOKEN_LEN_BIN)
         return 0;
 
-    int printed = DEVICE_TOKEN_LEN_BIN;
-    int ret;
-    uint32_t t;
 
-    LM_DBG("print item\n");
+    LM_DBG("print items\n");
 
-    memmove(buff, payload->token, DEVICE_TOKEN_LEN_BIN);
+    printed += print_item(buff + printed, DeviceTokenID, payload->token, DEVICE_TOKEN_LEN_BIN);
 
-    ret = print_payload_msg(payload->payload, buff+printed, size-printed);
+    ret = print_payload_msg(payload->payload, msg_buf, PAYLOAD_MAX_LEN);
     if (ret == 0)
         return 0;
-    
-    printed += ret;
+
+    printed += print_item(buff + printed, PayloadID, msg_buf, ret);
 
     if (size < printed + sizeof(t) + sizeof(payload->expiration) + 1)
         return 0;
 
     t =  htonl(payload->identifier);
-    memcpy(buff+printed, (char*)&t, sizeof(t));
-    printed += sizeof(t);
+    printed += print_item(buff + printed, NotificationID, (char*)&t, sizeof(t));
 
-    //t =  htonl(payload->identifier);
-    memcpy(buff+printed, 
-            (char*)&payload->expiration, 
-            sizeof(payload->expiration));
+    printed += print_item(buff + printed, ExpDateID, (char*)&payload->expiration, sizeof(payload->expiration));
 
-    printed += sizeof(payload->expiration);
-    buff[printed] = payload->priority;
+    printed += print_item(buff + printed, PriorityID, (char*)&payload->priority, sizeof(payload->priority));
+
     LM_DBG("Priority: %02X, id: %04X, printed total: %d\n", ((unsigned)payload->priority) & 0xff, payload->identifier, printed +1);
-    return printed + 1;
+    return printed;
 }
 
 // Create a new char* chunk.
@@ -109,10 +131,9 @@ static char* make_frame_msg(APNS_Frame* frame)
     // expire    4
     // prio      1
     // total    297
-    // Frame: + 1 (number) + 2 (length)
-    // Total:  300
-    #define FRAME_BUFFER_SIZE 300
-    #define CHUNK_OFFSET 3
+    // Frame: + (1 (number) + 2 (length))* frame count
+    // Total:  312
+    #define FRAME_BUFFER_SIZE 312
 
     if (frame == NULL)
         return NULL;
@@ -120,21 +141,17 @@ static char* make_frame_msg(APNS_Frame* frame)
     LM_DBG("Making the frame\n");
 
     char * chunk = (char*)malloc(FRAME_BUFFER_SIZE);
-    uint16_t l;
     if (chunk != NULL)
     {
         chunk[0] = frame->number;
         frame->length = print_item_msg(frame->data, 
-                                       chunk+CHUNK_OFFSET, 
-                                       FRAME_BUFFER_SIZE-CHUNK_OFFSET);
+                                       chunk,
+                                       FRAME_BUFFER_SIZE);
         if (frame->length == 0)
         {
             free(chunk);
             chunk = NULL;
         }
-        l = htons(frame->length);
-        memcpy(chunk+1, &l, sizeof(l));
-
     }
     if (frame->_chunk)
         free(frame->_chunk);
@@ -183,7 +200,7 @@ char* make_push_msg(APNS_Notification* notification)
             return NULL;
         }
 
-        notification->length += frame->length + CHUNK_OFFSET;
+        notification->length += frame->length;
         
         LM_DBG("Chunk %d, length %d, total: %d\n", count, frame->length, notification->length);
         frame = frame->next;
@@ -212,7 +229,7 @@ char* make_push_msg(APNS_Notification* notification)
     while(frame != NULL)
     {
         LM_DBG("Adding %d frame\n", frame->number);
-        memmove(buffer+printed, frame->_chunk, frame->length + CHUNK_OFFSET);
+        memmove(buffer+printed, frame->_chunk, frame->length);
         printed += frame->length;
 
         frame = frame->next;
@@ -223,7 +240,6 @@ char* make_push_msg(APNS_Notification* notification)
 
     return buffer;
 }
-
 
 
 APNS_Notification* create_notification()

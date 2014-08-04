@@ -85,7 +85,7 @@ static int apns_read_timeout = 100000;
 static int apns_feedback_read_timeout = 500000;
 
 static char *push_db = 0;
-static char *push_table = "push";
+static char *push_table = "push_apns";
 
 ///void *rh;
 
@@ -94,40 +94,40 @@ static char *push_table = "push";
 static PushServer* apns = 0;
 
 static cmd_export_t cmds[] = {
-	{"push_request", (cmd_function)w_push_request, 1,
+    {"push_request", (cmd_function)w_push_request, 1,
      push_api_fixup, free_push_api_fixup,
      ANY_ROUTE},
-	{"push_register", (cmd_function)w_push_register, 1,
+    {"push_register", (cmd_function)w_push_register, 1,
      push_api_fixup, free_push_api_fixup,
      ANY_ROUTE},
-	{"push_request", (cmd_function)w_push_message, 2,
+    {"push_request", (cmd_function)w_push_message, 2,
      push_api_fixup, free_push_api_fixup,
      ANY_ROUTE},
-	{"push_message", (cmd_function)w_push_msg, 1,
+    {"push_message", (cmd_function)w_push_msg, 1,
      push_api_fixup, free_push_api_fixup,
      ANY_ROUTE},
 
-	{0, 0, 0, 0, 0, 0}
+    {0, 0, 0, 0, 0, 0}
 };
 
 static param_export_t params[] = {
-	{"push_config",        STR_PARAM, &push_config        },
-	{"push_db",            STR_PARAM, &push_db            },
+    {"push_config",        STR_PARAM, &push_config        },
+    {"push_db",            STR_PARAM, &push_db            },
     {"push_table",         STR_PARAM, &push_table         },
-	{"push_flag",          INT_PARAM, &push_flag          },
+    {"push_flag",          INT_PARAM, &push_flag          },
     {"push_apns_cert",     STR_PARAM, &apns_cert_file     },
     {"push_apns_key",      STR_PARAM, &apns_cert_key      },
     {"push_apns_cafile",   STR_PARAM, &apns_cert_ca       },
     {"push_apns_server",   STR_PARAM, &apns_server        },
-	{"push_apns_port",     INT_PARAM, &apns_port          },
-	{"push_apns_alert",    STR_PARAM, &apns_alert         },
-	{"push_apns_sound",    STR_PARAM, &apns_sound         },
-	{"push_apns_badge",    INT_PARAM, &apns_badge         },
-	{"push_apns_rtimeout", INT_PARAM, &apns_read_timeout  },
+    {"push_apns_port",     INT_PARAM, &apns_port          },
+    {"push_apns_alert",    STR_PARAM, &apns_alert         },
+    {"push_apns_sound",    STR_PARAM, &apns_sound         },
+    {"push_apns_badge",    INT_PARAM, &apns_badge         },
+    {"push_apns_rtimeout", INT_PARAM, &apns_read_timeout  },
     {"push_apns_feedback_server",   STR_PARAM, &apns_feedback_server },
-	{"push_apns_feedback_port",     INT_PARAM, &apns_feedback_port   },
-	{"push_apns_feedback_rtimeout", INT_PARAM, &apns_feedback_read_timeout },
-	{0,0,0}
+    {"push_apns_feedback_port",     INT_PARAM, &apns_feedback_port   },
+    {"push_apns_feedback_rtimeout", INT_PARAM, &apns_feedback_read_timeout },
+    {0,0,0}
 };
 
 /* static proc_export_t procs[] = { */
@@ -137,18 +137,18 @@ static param_export_t params[] = {
 
 
 struct module_exports exports= {
-	"push",
-	DEFAULT_DLFLAGS, /* dlopen flags */
-	cmds,       /* exported functions */
-	params,     /* exported params */
-	0,          /* exported statistics */
-	0,          /* exported MI functions */
-	0,          /* exported pseudo-variables */
-	0,          /* extra processes, depricated? */
-	mod_init,   /* initialization module */
-	0,          /* response function */
-	destroy,    /* destroy function */
-	child_init  /* per-child init function */
+    "push",
+    DEFAULT_DLFLAGS, /* dlopen flags */
+    cmds,       /* exported functions */
+    params,     /* exported params */
+    0,          /* exported statistics */
+    0,          /* exported MI functions */
+    0,          /* exported pseudo-variables */
+    0,          /* extra processes, depricated? */
+    mod_init,   /* initialization module */
+    0,          /* response function */
+    destroy,    /* destroy function */
+    child_init  /* per-child init function */
 };
 
 static int pipefd[2];
@@ -185,76 +185,76 @@ get_callid(struct sip_msg* msg, str *cid)
  */
 int extract_aor(str* _uri, str* _a, sip_uri_t *_pu)
 {
-	static char aor_buf[MAX_AOR_LEN];
-	str tmp;
-	sip_uri_t turi;
-	sip_uri_t *puri;
-	int user_len;
-	str *uri;
-	str realm_prefix = {0};
-	
-	memset(aor_buf, 0, MAX_AOR_LEN);
-	uri=_uri;
+    static char aor_buf[MAX_AOR_LEN];
+//  str tmp;
+    sip_uri_t turi;
+    sip_uri_t *puri;
+//  int user_len;
+    str *uri;
+//  str realm_prefix = {0};
+    
+    memset(aor_buf, 0, MAX_AOR_LEN);
+    uri=_uri;
 
-	if(_pu!=NULL)
-		puri = _pu;
-	else
-		puri = &turi;
+    if(_pu!=NULL)
+        puri = _pu;
+    else
+        puri = &turi;
 
-	if (parse_uri(uri->s, uri->len, puri) < 0) {
-		LM_ERR("failed to parse AoR [%.*s]\n", uri->len, uri->s);
-		return -1;
-	}
-	
-	if ( (puri->user.len + puri->host.len + 1) > MAX_AOR_LEN
+    if (parse_uri(uri->s, uri->len, puri) < 0) {
+        LM_ERR("failed to parse AoR [%.*s]\n", uri->len, uri->s);
+        return -1;
+    }
+    
+    if ( (puri->user.len + puri->host.len + 1) > MAX_AOR_LEN
          || puri->user.len > USERNAME_MAX_SIZE
          ||  puri->host.len > DOMAIN_MAX_SIZE ) {
-		LM_ERR("Address Of Record too long\n");
-		return -2;
-	}
+        LM_ERR("Address Of Record too long\n");
+        return -2;
+    }
 
-	_a->s = aor_buf;
-	_a->len = puri->user.len;
+    _a->s = aor_buf;
+    _a->len = puri->user.len;
 
-	if (un_escape(&puri->user, _a) < 0) {
-		LM_ERR("failed to unescape username\n");
-		return -3;
-	}
+    if (un_escape(&puri->user, _a) < 0) {
+        LM_ERR("failed to unescape username\n");
+        return -3;
+    }
 
-	user_len = _a->len;
+//  user_len = _a->len;
 
-	/* if (reg_use_domain) { */
-	/* 	if (user_len) */
-	/* 		aor_buf[_a->len++] = '@'; */
-	/* 	/\* strip prefix (if defined) *\/ */
- 	/* 	realm_prefix.len = cfg_get(registrar, registrar_cfg, realm_pref).len; */
-	/* 	if(realm_prefix.len>0) { */
-	/* 		realm_prefix.s = cfg_get(registrar, registrar_cfg, realm_pref).s; */
-	/* 		LM_DBG("realm prefix is [%.*s]\n", realm_prefix.len, */
+    /* if (reg_use_domain) { */
+    /*  if (user_len) */
+    /*      aor_buf[_a->len++] = '@'; */
+    /*  /\* strip prefix (if defined) *\/ */
+    /*  realm_prefix.len = cfg_get(registrar, registrar_cfg, realm_pref).len; */
+    /*  if(realm_prefix.len>0) { */
+    /*      realm_prefix.s = cfg_get(registrar, registrar_cfg, realm_pref).s; */
+    /*      LM_DBG("realm prefix is [%.*s]\n", realm_prefix.len, */
     /*                (realm_prefix.len>0)?realm_prefix.s:""); */
-	/* 	} */
-	/* 	if (realm_prefix.len>0 */
+    /*  } */
+    /*  if (realm_prefix.len>0 */
     /*         && realm_prefix.len<puri->host.len */
     /*         && (memcmp(realm_prefix.s, puri->host.s, realm_prefix.len)==0)) */
-	/* 	{ */
-	/* 		memcpy(aor_buf + _a->len, puri->host.s + realm_prefix.len, */
+    /*  { */
+    /*      memcpy(aor_buf + _a->len, puri->host.s + realm_prefix.len, */
     /*                puri->host.len - realm_prefix.len); */
-	/* 		_a->len += puri->host.len - realm_prefix.len; */
-	/* 	} else { */
-	/* 		memcpy(aor_buf + _a->len, puri->host.s, puri->host.len); */
-	/* 		_a->len += puri->host.len; */
-	/* 	} */
-	/* } */
+    /*      _a->len += puri->host.len - realm_prefix.len; */
+    /*  } else { */
+    /*      memcpy(aor_buf + _a->len, puri->host.s, puri->host.len); */
+    /*      _a->len += puri->host.len; */
+    /*  } */
+    /* } */
 
-	/* if (cfg_get(registrar, registrar_cfg, case_sensitive) && user_len) { */
-	/* 	tmp.s = _a->s + user_len + 1; */
-	/* 	tmp.len = _a->s + _a->len - tmp.s; */
-	/* 	strlower(&tmp); */
-	/* } else { */
-		strlower(_a);
-	/* } */
+    /* if (cfg_get(registrar, registrar_cfg, case_sensitive) && user_len) { */
+    /*  tmp.s = _a->s + user_len + 1; */
+    /*  tmp.len = _a->s + _a->len - tmp.s; */
+    /*  strlower(&tmp); */
+    /* } else { */
+    strlower(_a);
+    /* } */
 
-	return 0;
+    return 0;
 }
 
 
@@ -289,12 +289,12 @@ static int mod_init( void )
     register_procs(1);
 #endif
 
-	if (push_config == NULL || push_config[0] == '\0')
-		return 0;
+    if (push_config == NULL || push_config[0] == '\0')
+        return 0;
 
     /* do all staff in child init*/
 
-	return 0;
+    return 0;
 }
 
 
@@ -312,28 +312,28 @@ static int child_init(int rank)
             return -1;
         }
         
-		pid = fork_process(PROC_NOCHLDINIT, "MY PROC DESCRIPTION", 1);
-		if (pid < 0)
-			return -1; /* error */
+        pid = fork_process(PROC_NOCHLDINIT, "MY PROC DESCRIPTION", 1);
+        if (pid < 0)
+            return -1; /* error */
 
-		if(pid == 0)
+        if(pid == 0)
         {
-			/* child */
+            /* child */
             close(pipefd[1]);
     
-			/* initialize the config framework */
-			if (cfg_child_init())
+            /* initialize the config framework */
+            if (cfg_child_init())
             {
                 LM_ERR("cfg child init failed\n");
-				return -1;
+                return -1;
             }
             LM_DBG("Start feedback server");
-			feedback_service(pipefd[0]);
+            feedback_service(pipefd[0]);
             
             exit(0);
-		}
+        }
         close(pipefd[0]);
-	}
+    }
 #endif
 
     if ((push_db) && (-1 == push_connect_db(apns, push_db, push_table, rank)))
@@ -345,10 +345,10 @@ static int child_init(int rank)
     if (push_flag == ConnectEstablish)
         return establish_ssl_connection(apns);
 
-	/* if (rank==PROC_INIT || rank==PROC_MAIN || rank==PROC_TCP_MAIN) */
-	/* 	return 0; /\* do nothing for the main process *\/ */
+    /* if (rank==PROC_INIT || rank==PROC_MAIN || rank==PROC_TCP_MAIN) */
+    /*  return 0; /\* do nothing for the main process *\/ */
 
-	return 0;
+    return 0;
 }
 
 
@@ -368,28 +368,28 @@ static void destroy(void)
 
 static int push_api_fixup(void** param, int param_no)
 {
-	char *p;
+    char *p;
 
     LM_DBG("Push push_api_fixup, param %d\n", param_no);
 
-	p = (char*)*param;
-	if (p==0 || p[0]==0) {
-		LM_ERR("first parameter is empty\n");
-		return E_SCRIPT;
-	}
+    p = (char*)*param;
+    if (p==0 || p[0]==0) {
+        LM_ERR("first parameter is empty\n");
+        return E_SCRIPT;
+    }
 
-	return 0;
+    return 0;
 }
 
 
 static int free_push_api_fixup(void** param, int param_no)
 {
     LM_DBG("Push free_push_api_fixup, param %d\n", param_no);
-	/* if(*param) */
-	/* { */
-	/* 	pkg_free(*param); */
-	/* 	*param = 0; */
-	/* } */
+    /* if(*param) */
+    /* { */
+    /*  pkg_free(*param); */
+    /*  *param = 0; */
+    /* } */
 
     return 0;
 }
@@ -416,7 +416,7 @@ static int w_push_request(struct sip_msg *rq, const char *device_token)
         return -1;
     }
 
-    if (-1 == push_send(apns,  device_token, apns_alert, callid.s, apns_badge))
+    if (-1 == push_send(apns,  device_token, apns_alert, &callid, apns_badge))
     {
         LM_ERR("Push notification failed, call id %s, device token %s\n",
                callid.s, device_token);
@@ -450,7 +450,7 @@ static int w_push_message(struct sip_msg *rq, const char *device_token, const ch
         return -1;
     }
 
-    if (-1 == push_send(apns,  device_token, message, callid.s, apns_badge))
+    if (-1 == push_send(apns,  device_token, message, &callid, apns_badge))
     {
         LM_ERR("Push notification failed, call id %s, device token %s, message %s\n",
                callid.s, device_token, message);
@@ -492,7 +492,7 @@ static int w_push_register(struct sip_msg *rq, const char *device_token)
     }
     LM_DBG("Push request, AOR %s, token %s\n", aor.s, device_token);
 
-    if (-1 == push_register_device(apns, aor.s, device_token))
+    if (-1 == push_register_device(apns, aor.s, device_token, &callid, push_table))
     {
         LM_ERR("Push device registration failed, call id %s, device token %s\n",
                callid.s, device_token);
@@ -509,7 +509,7 @@ static int w_push_msg(struct sip_msg *rq, const char* msg)
 {
     char* device_token = NULL;
     to_body_t* to;
-    str uri, aor;
+    str /*uri,*/ aor;
 
     str  callid;
 
@@ -535,17 +535,17 @@ static int w_push_msg(struct sip_msg *rq, const char* msg)
 
     LM_DBG("Send push message, aor [%s], getting token...\n", aor.s);
 
-    if (-1 == push_get_device(apns, aor.s, &device_token))
+    if (-1 == push_get_device(apns, aor.s, (const char **)&device_token, push_table))
     {
         LM_ERR("Push failed, cannot get device token, call id %s\n",
                callid.s);
         return -1;
     }
 
-    LM_DBG("Sending push message, aor [%s], token [%s], msg [%s], callid [%s], badge [%d]...\n", 
-           aor.s, device_token, msg, callid.s, apns_badge);
+    LM_DBG("Sending push message, aor [%s], token [%s], msg [%s], badge [%d]...\n", 
+           aor.s, device_token, msg, apns_badge);
 
-    if (-1 == push_send(apns, device_token, msg, callid.s, apns_badge))
+    if (-1 == push_send(apns, device_token, msg, &callid, apns_badge))
     {
         LM_ERR("Push notification failed, call id %s, device token %s, message %s\n",
                callid.s, device_token, msg);
@@ -570,13 +570,6 @@ static int w_push_status(struct sip_msg *rq, const char* device_token, int code)
 static void feedback_service(int fd)
 {
 #define FEEDBACK_MSG_LEN 38
-    char status_buf[FEEDBACK_MSG_LEN];
-
-    int read_len = 0;
-    int err = 0;
-
-    uint32_t id = 0;
-
     PushServer *feedback;
 
     feedback = create_push_server(apns_cert_file, 

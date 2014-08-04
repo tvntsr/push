@@ -101,7 +101,7 @@ static int waited_sleep(int sleep_sec, int fd)
     fd_set readfds;
     struct timeval timeout;
     char cmd;
-    int mx;
+//    int mx;
 
     timeout.tv_usec = 0;
     timeout.tv_sec = sleep_sec;

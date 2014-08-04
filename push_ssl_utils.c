@@ -81,6 +81,8 @@ static int socket_init(const char* server, uint16_t port);
 static SSL_CTX* ssl_context();
 static SSL* ssl_start(int sd, SSL_CTX* ctx);
 static int check_cert(SSL* s);
+static int socket_destroy(PushServer* server);
+
 
 static int load_ssl_certs(SSL_CTX* ctx, char* cert, char* key, char* ca)
 {
@@ -161,7 +163,7 @@ static SSL_CTX* ssl_context()
 
     SSLeay_add_ssl_algorithms();
 
-    meth = SSLv23_client_method();
+    meth = (SSL_METHOD *)SSLv23_client_method();
 
     return SSL_CTX_new (meth);
 }
@@ -240,7 +242,7 @@ static void read_status(PushServer* server)
 #define STATUS_LEN 6
     char status_buf[STATUS_LEN];
 
-    int read_len = 0;
+//    int read_len = 0;
     int err = 0;
 
     uint32_t id = 0;
@@ -273,14 +275,23 @@ static void read_status(PushServer* server)
             status_buf[1]);
 }
 
+static int socket_destroy(PushServer* server)
+{
+    LM_DBG("Destroy ssl socket %d\n", server->socket);
+    close(server->socket);
+    server->socket = -1;
+    return 1;
+}
+
 // Public functions
 
 int send_push_data(PushServer* server, const char* buffer, uint32_t length)
 {
     int err = 0;
     uint32_t written = 0;
-
+    int first_try = 1;
     
+  again:
     if ((server->socket == -1) && (server->flags != NoReconnect))
         establish_ssl_connection(server);
 
@@ -301,18 +312,30 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
                 written += err;
                 break;
             case SSL_ERROR_WANT_WRITE:
+            case SSL_ERROR_WANT_READ:
+                break;
+            case SSL_ERROR_ZERO_RETURN:
+                LM_ERR("Cannot write, peer disconnected, reconnect...\n");
+                socket_destroy(server);
+                establish_ssl_connection(server);
                 break;
             default:
             {
                 LM_DBG("Open SSL error, %d\n", err);
                 LOG_SSL_ERROR(err);
                 //SSL_get_error(server->ssl, err);
+                socket_destroy(server);
                 return -1;
             }
         }
     }
 
     read_status(server);
+    if (server->socket == -1 && first_try)
+    {
+        first_try = 0;
+        goto again;
+    }
 
     return err;
 }
@@ -404,6 +427,9 @@ int extended_read(PushServer* server,
     fd_set readfds;
     struct timeval timeout;
 
+    if (server->socket == -1)
+        establish_ssl_connection(server);
+
     while(read_len != length)
     {
         int mx;
@@ -458,6 +484,7 @@ int extended_read(PushServer* server,
               /* End of data */
               /*   SSL_shutdown(ssl); */
                 LM_WARN("SSL_ERROR_ZERO_RETURN\n");
+                socket_destroy(server);
                 return 0;
             case SSL_ERROR_WANT_READ:
               break;
