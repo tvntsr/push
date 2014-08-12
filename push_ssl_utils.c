@@ -278,7 +278,7 @@ static void read_status(PushServer* server)
 static int socket_destroy(PushServer* server)
 {
     LM_DBG("Destroy ssl socket %d\n", server->socket);
-    close(server->socket);
+    ssl_shutdown(server);
     server->socket = -1;
     return 1;
 }
@@ -337,14 +337,14 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
         goto again;
     }
 
+    if (err == 0)
+        err = -1;
+
     return err;
 }
 
 void ssl_shutdown(PushServer* server)
 {
-    /* Clean up. */
-    close (server->socket);
-
     if (server->ssl)
         SSL_free (server->ssl);
 
@@ -354,6 +354,8 @@ void ssl_shutdown(PushServer* server)
     server->socket = -1;
     server->ssl = NULL;
     server->ssl_ctx = NULL;
+    /* Clean up. */
+    close (server->socket);
 }
 
 int establish_ssl_connection(PushServer* server)
@@ -485,7 +487,7 @@ int extended_read(PushServer* server,
               /*   SSL_shutdown(ssl); */
                 LM_WARN("SSL_ERROR_ZERO_RETURN\n");
                 socket_destroy(server);
-                return 0;
+                return -1;
             case SSL_ERROR_WANT_READ:
               break;
             default:

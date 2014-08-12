@@ -37,12 +37,13 @@ void run_feedback(PushServer* server, int comm_sock)
         }
         LM_DBG("Start feedback reader\n");
 
-        ret = handle_feedback_communication(server, comm_sock);
-        if (ret == 0)
-        {
+        //ret = 
+        handle_feedback_communication(server, comm_sock);
+//        if (ret == 0)
+//        {
             //sleep
             ret = waited_sleep(CHECK_FEEDBACK_TIMEOUT, comm_sock);
-        }
+//        }
     }
     while(ret == 0);
 

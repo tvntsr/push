@@ -262,6 +262,18 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
 
     char* message;
 
+    if (device_token == NULL)
+    {
+        LM_ERR("Cannot start push, device token is NULL\n");
+        return -1;
+    }
+
+    if (alert == NULL)
+    {
+        LM_ERR("Cannot start push, alert is NULL\n");
+        return -1;
+    }
+
     LM_DBG("token %s\n", device_token);
     APNS_Notification* notification = create_notification();
     if (notification == NULL)
