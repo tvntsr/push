@@ -31,19 +31,19 @@ void run_feedback(PushServer* server, int comm_sock)
     {
         if (-1 == establish_ssl_connection(server))
         {
-            destroy_push_server(server);
             LM_ERR("Cannot establish connection to feedback server\n");
-            break;
+            ret = waited_sleep(CHECK_FEEDBACK_TIMEOUT/2, comm_sock);
+            if (ret != 0)
+            {
+		break;
+            }
+            continue;
         }
         LM_DBG("Start feedback reader\n");
 
-        //ret = 
         handle_feedback_communication(server, comm_sock);
-//        if (ret == 0)
-//        {
-            //sleep
-            ret = waited_sleep(CHECK_FEEDBACK_TIMEOUT, comm_sock);
-//        }
+        //sleep
+        ret = waited_sleep(CHECK_FEEDBACK_TIMEOUT, comm_sock);
     }
     while(ret == 0);
 
