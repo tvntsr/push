@@ -35,7 +35,7 @@ void run_feedback(PushServer* server, int comm_sock)
             ret = waited_sleep(CHECK_FEEDBACK_TIMEOUT/2, comm_sock);
             if (ret != 0)
             {
-		break;
+                break;
             }
             continue;
         }

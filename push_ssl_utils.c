@@ -188,14 +188,20 @@ static SSL* ssl_start(int sd, SSL_CTX* ctx)
     }
 
     LM_DBG("Set socket to be used with ssl...\n");
-    sbio=BIO_new_socket(sd, BIO_NOCLOSE);
+    sbio = BIO_new_socket(sd, BIO_NOCLOSE);
     SSL_set_bio(s, sbio, sbio);
 
     LM_DBG("SSL connect...\n");
     err = SSL_connect (s);
     LM_DBG("SSL connect done...\n");
-    if ((err)==-1) { ERR_print_errors_fp(stderr); return NULL; }
+    if ((err) == -1) 
+    { 
+        ERR_print_errors_fp(stderr); 
+        return NULL; 
+    }
     LM_DBG("SSL connect done...\n");
+
+    SSL_set_quiet_shutdown(s, 1);
 
     return s;
 }
@@ -295,15 +301,14 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
     if ((server->socket == -1) && (server->flags != NoReconnect))
         establish_ssl_connection(server);
 
-    if (server->socket == -1)
-    {
-
-        LM_ERR("Cannot write, peer disconnected...\n");
-        return -1;
-    }
-
     while(written != length)
     {
+        if (server->socket == -1)
+        {
+            LM_ERR("Cannot write, peer disconnected...\n");
+            return -1;
+        }
+
         err = SSL_write (server->ssl, buffer + written, length - written);
 
         switch(SSL_get_error(server->ssl, err))
@@ -345,17 +350,20 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
 
 void ssl_shutdown(PushServer* server)
 {
+    SSL_shutdown(server->ssl);
+
     if (server->ssl)
         SSL_free (server->ssl);
 
     if (server->ssl_ctx)
         SSL_CTX_free (server->ssl_ctx);
 
-    server->socket = -1;
     server->ssl = NULL;
     server->ssl_ctx = NULL;
     /* Clean up. */
     close (server->socket);
+
+    server->socket = -1;
 }
 
 int establish_ssl_connection(PushServer* server)
@@ -429,8 +437,11 @@ int extended_read(PushServer* server,
     fd_set readfds;
     struct timeval timeout;
 
-    if (server->socket == -1)
-        establish_ssl_connection(server);
+    if ((server->socket == -1) && -1 == establish_ssl_connection(server))
+    {
+        LM_ERR("extended_read failed, cannot reconnecd  initialization failed\n");
+        return -1;
+    }
 
     while(read_len != length)
     {
@@ -483,8 +494,8 @@ int extended_read(PushServer* server,
                 }
                 break;
             case SSL_ERROR_ZERO_RETURN:
-              /* End of data */
-              /*   SSL_shutdown(ssl); */
+                /* End of data */
+                /*   SSL_shutdown(ssl); */
                 LM_WARN("SSL_ERROR_ZERO_RETURN\n");
                 socket_destroy(server);
                 return -1;
