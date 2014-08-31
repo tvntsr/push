@@ -330,6 +330,11 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
                 LOG_SSL_ERROR(err);
                 //SSL_get_error(server->ssl, err);
                 socket_destroy(server);
+                if (first_try)
+                {
+                    first_try = 0;
+                    goto again;
+                }
                 return -1;
             }
         }
