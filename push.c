@@ -48,10 +48,15 @@ static int  print_payload_msg(APNS_Payload* payload, char* buff, size_t size)
     if (payload->alert == NULL)
         return -1;
 
-    int printed = snprintf(buff, size, 
+    int printed = payload->custom_param == NULL ?
+        snprintf(buff, size, 
 //                           "{\"aps\":{\"alert\":\"%s\"},\"call-id\":\"%s\"}",
-                           "{\"aps\":{\"alert\":{\"body\":\"%s\"}}}",  
-                           payload->alert);
+                 "{\"aps\":{\"alert\":{\"body\":\"%s\"}}}",  
+                 payload->alert):
+        snprintf(buff, size, 
+                 "{\"aps\":{\"alert\":{\"body\":\"%s\"}}, %s}",  
+                 payload->alert, payload->custom_param);
+
 
     LM_DBG("Payload: [%s], total %d\n", buff, printed);
     return printed;

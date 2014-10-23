@@ -59,8 +59,10 @@ static void stop_feedback_service();
 
 static int w_push_request(struct sip_msg *rq, const char *device_token);
 static int w_push_message(struct sip_msg *rq, const char *device_token, const char *message);
+static int w_push_custom_message(struct sip_msg *rq, const char *device_token, const char *message, const char* custom);
 static int w_push_register(struct sip_msg *rq, const char *device_token);
 static int w_push_msg(struct sip_msg *rq, const char *msg);
+static int w_push_custom_msg(struct sip_msg *rq, const char *msg, const char* custom);
 static int w_push_status(struct sip_msg *rq, const char* device_token, int code);
 
 static int push_api_fixup(void** param, int param_no);
@@ -103,7 +105,13 @@ static cmd_export_t cmds[] = {
     {"push_request", (cmd_function)w_push_message, 2,
      push_api_fixup, free_push_api_fixup,
      ANY_ROUTE},
+    {"push_request", (cmd_function)w_push_custom_message, 3,
+     push_api_fixup, free_push_api_fixup,
+     ANY_ROUTE},
     {"push_message", (cmd_function)w_push_msg, 1,
+     push_api_fixup, free_push_api_fixup,
+     ANY_ROUTE},
+    {"push_message", (cmd_function)w_push_custom_msg, 2,
      push_api_fixup, free_push_api_fixup,
      ANY_ROUTE},
 
@@ -416,7 +424,7 @@ static int w_push_request(struct sip_msg *rq, const char *device_token)
         return -1;
     }
 
-    if (-1 == push_send(apns,  device_token, apns_alert, &callid, apns_badge))
+    if (-1 == push_send(apns,  device_token, apns_alert, NULL, apns_badge))
     {
         LM_ERR("Push notification failed, call id %s, device token %s\n",
                callid.s, device_token);
@@ -428,8 +436,12 @@ static int w_push_request(struct sip_msg *rq, const char *device_token)
     return 1;
 }
 
-
 static int w_push_message(struct sip_msg *rq, const char *device_token, const char *message)
+{
+    return w_push_custom_message(rq, device_token, message, NULL);
+}
+
+static int w_push_custom_message(struct sip_msg *rq, const char *device_token, const char *message, const char* custom)
 {
 //    str *ruri;
     str  callid;
@@ -450,7 +462,7 @@ static int w_push_message(struct sip_msg *rq, const char *device_token, const ch
         return -1;
     }
 
-    if (-1 == push_send(apns,  device_token, message, &callid, apns_badge))
+    if (-1 == push_send(apns,  device_token, message, custom, apns_badge))
     {
         LM_ERR("Push notification failed, call id %s, device token %s, message %s\n",
                callid.s, device_token, message);
@@ -507,6 +519,11 @@ static int w_push_register(struct sip_msg *rq, const char *device_token)
 
 static int w_push_msg(struct sip_msg *rq, const char* msg)
 {
+    return w_push_custom_msg(rq, msg, NULL);
+}
+
+static int w_push_custom_msg(struct sip_msg *rq, const char* msg, const char* custom)
+{
     char* device_token = NULL;
     to_body_t* to;
     str /*uri,*/ aor;
@@ -545,7 +562,7 @@ static int w_push_msg(struct sip_msg *rq, const char* msg)
     LM_DBG("Sending push message, aor [%s], token [%s], msg [%s], badge [%d]...\n", 
            aor.s, device_token, msg, apns_badge);
 
-    if (-1 == push_send(apns, device_token, msg, &callid, apns_badge))
+    if (-1 == push_send(apns, device_token, msg, custom, apns_badge))
     {
         LM_ERR("Push notification failed, call id %s, device token %s, message %s\n",
                callid.s, device_token, msg);

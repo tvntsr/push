@@ -54,7 +54,7 @@ int push_check_db(PushServer* apns, const char* push_db, const char* push_table)
 
 int push_connect_db(PushServer* apns, const char* push_db, const char* push_table, int rank);
 
-int push_send(PushServer* apns,  const char *device_token, const char* alert, const str* call_id, int badge);
+int push_send(PushServer* apns,  const char *device_token, const char* alert, const char* custom, int badge);
 
 int push_register_device(PushServer* apns, const char* contact, const char *device_token, const str* callid, const char* tbl);
 

@@ -255,7 +255,7 @@ int push_connect_db(PushServer* apns, const char* push_db, const char* push_tabl
     return 1;
 }
 
-int push_send(PushServer* apns,  const char *device_token, const char* alert, const str* call_id, int badge)
+int push_send(PushServer* apns,  const char *device_token, const char* alert, const char* custom, int badge)
 {
     APNS_Payload* payload = NULL;
     APNS_Item*    item;
@@ -289,7 +289,7 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
         return -1;
     }
     payload->alert   = strdup(alert);
-    payload->call_id = strndup(call_id->s, call_id->len);
+    payload->custom_param = (custom == NULL) ? NULL : strdup(custom);
     payload->badge   = badge;
 
     item = create_item(payload, PUSH_MAX_PRIO);

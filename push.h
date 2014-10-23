@@ -46,7 +46,7 @@ struct APNS_Payload
                                    indicate that new content is available.
                                    This is used to support Newsstand apps and 
                                    background content downloads. */
-    char* call_id;        /* additional param for SIP: CallID */
+    char* custom_param;         /* custom parameter, should be formatted json string */
 };
 typedef struct APNS_Payload APNS_Payload;
 
