@@ -60,4 +60,7 @@ int push_register_device(PushServer* apns, const char* contact, const char *devi
 
 int push_get_device(PushServer* apns, const char* aor, const char** device_token, const char* tbl);
 
+void push_check_status(PushServer* apns);
+
+
 #endif //PUSH_COMMON_H

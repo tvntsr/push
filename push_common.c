@@ -25,13 +25,176 @@
 
 #include "../../dprint.h"
 #include "../../lib/srdb1/db_val.h"
+#include "../../locking.h"
 
 #include "push_common.h"
 #include "push_ssl_utils.h"
 #include "push.h"
 #include "apns_feedback.h"
 
-static uint32_t notification_id = 0;
+#define STATUS_CMD 8
+
+typedef struct push_queue_item
+{
+    uint32_t message_id;
+    time_t   sent_time;
+    char*    message;
+    size_t   len;
+} push_queue_item_t;
+
+typedef struct node
+{
+    push_queue_item_t push;
+    struct node* next;
+    struct node* prev;
+} node_t;
+
+typedef struct push_queue
+{
+    node_t *head;
+    node_t* last;
+}push_queue_t;
+
+static gen_lock_t* push_lock = NULL;
+static push_queue_t* push_queue  = NULL;
+
+static void init_push_queue()
+{
+    if (push_queue == NULL) {
+        push_lock = lock_alloc();
+        push_queue = calloc(1, sizeof(push_queue_t));
+    }
+}
+
+/* static void destroy_push_queue() */
+/* { */
+/*     if (push_queue != NULL) { */
+/*         push_lock = lock_alloc(); */
+/*         push_queue = calloc(1, sizeof(push_queue_t)); */
+/*     } */
+/* } */
+
+
+static void add_push_to_queue(uint32_t push_message_id, char* message, size_t len)
+{
+    init_push_queue();
+    if (push_queue == NULL){
+        return;
+    }
+
+    node_t* node = calloc(1, sizeof(node_t));
+    if (node == NULL)
+    {
+        return; 
+    }
+
+    node->push.message_id = push_message_id;
+    node->push.message = message;
+    node->push.len = len;
+    time(&node->push.sent_time);
+
+    lock_get(push_lock);
+    if (push_queue->last == NULL) {
+        push_queue->last = node;
+        push_queue->last->prev = push_queue->head;
+        push_queue->head = push_queue->last;
+    }
+    else {
+        push_queue->last->next = node;
+        node->prev = push_queue->last;
+        push_queue->last  = node;
+    }
+    lock_release(push_lock);
+
+    return;
+}
+
+static uint32_t top_message_id()
+{
+    if (push_lock == 0)
+        return 0;
+
+    lock_get(push_lock);
+    if (push_queue == NULL || push_queue->head == NULL) {
+        lock_release(push_lock);
+        return 0;
+    }
+
+    uint32_t id = push_queue->head->push.message_id;
+    lock_release(push_lock);
+    
+    return id;
+}
+
+static time_t top_message_sent()
+{
+    if (push_lock == NULL)
+        return 0;
+
+    lock_get(push_lock);
+    if (push_queue == NULL || push_queue->head == NULL){
+        lock_release(push_lock);
+        return 0;
+    }
+
+    time_t time = push_queue->head->push.sent_time;
+    lock_release(push_lock);
+
+    return time;
+}
+
+
+static int pop_message(uint32_t* id, char** message, size_t* len, time_t* sent)
+{
+    if (push_lock == NULL)
+        return 0;
+
+    lock_get(push_lock);
+    if (push_queue == NULL || push_queue->head == NULL){
+        lock_release(push_lock);
+        return 0;
+    }
+
+    node_t* top = push_queue->head;
+    push_queue->head = top->next;
+    if (push_queue->head != NULL) {
+        push_queue->head->prev = NULL;
+    }
+
+    lock_release(push_lock);
+
+    if (id != NULL) {
+        *id = top->push.message_id; 
+    }
+
+    if (message != NULL) {
+        *message = top->push.message;
+    }
+    else {
+        free(top->push.message);
+    }
+
+    if (len != NULL) {
+        *len = top->push.len;
+    }
+
+    if (sent != NULL) {
+        *sent = top->push.sent_time;
+    }
+
+    free(top);
+    return 1;
+}
+
+
+static uint32_t get_notification_id()
+{
+    static volatile uint32_t notification_id = 1;
+    
+    uint32_t ret = atomic_add_int((volatile int *)&notification_id, 1);
+
+    return ret;
+}
 
 static char char2bin(const char ch)
 {
@@ -99,6 +262,50 @@ static int bin2str(const char* bin, size_t bin_len, char** buf)
     return 1;
 }
 
+static void resend_pushes(PushServer* server, uint32_t start)
+{
+    char* message;
+    uint32_t id;
+    size_t len;
+    time_t sent;
+
+    LM_INFO("Resending data to apns: start id %u, top id %u\n", start, top_message_id());
+    while(start >= top_message_id())
+    {
+        if (0 == pop_message(NULL, NULL, NULL, NULL))
+        {
+            // nothing to send, return
+            return;
+        }
+    }
+
+    time_t time_start = time(NULL);
+
+    while (time_start > top_message_sent())
+    {
+        if (0 == pop_message(&id, &message, &len,  &sent))
+        {
+            return; // No message anymore
+        }
+
+        char *buf;
+        bin2str(message, len, &buf);
+            
+        LM_INFO("Resending data to apns: id %d, sent %lu, message [%s], length %lu\n", id, sent, buf, len);
+            
+        free(buf);
+
+        if (-1 == send_push_data(server, message, len))
+        {
+            LM_ERR("Push sending failed\n");
+        }
+
+        LM_DBG("OK\n");
+        // re-add message
+        add_push_to_queue(id, message, len);
+    }
+}
+
 PushServer* create_push_server(const char *cert_file, 
                                const char *cert_key, 
                                const char *cert_ca,
@@ -106,6 +313,8 @@ PushServer* create_push_server(const char *cert_file,
                                uint16_t port)
 {
     PushServer* server;
+
+//    init_push_queue();
 
     server = malloc(sizeof(PushServer));
     if (server == NULL)
@@ -194,7 +403,7 @@ int push_check_db(PushServer* apns, const char* push_db, const char* push_table)
     if (!DB_CAPABILITY(apns->dbf, DB_CAP_ALL))
     {
         LM_ERR("Database module does not implement all functions"
-               " needed by presence module\n");
+               " needed by push module\n");
         return -1;
     }
 
@@ -259,6 +468,7 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
 {
     APNS_Payload* payload = NULL;
     APNS_Item*    item;
+    uint32_t id;
 
     char* message;
 
@@ -303,7 +513,7 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
 
     str2bin(device_token, item->token);
 
-    item->identifier = ++notification_id;
+    id = item->identifier = get_notification_id();
 
     if (-1 == notification_add_item(notification, item))
     {
@@ -336,7 +546,9 @@ int push_send(PushServer* apns,  const char *device_token, const char* alert, co
     }
 
     LM_DBG("OK\n");
-    free(message);
+//    free(message);
+    add_push_to_queue(id, message, notification->length);
+
     LM_DBG("Destroy\n");
     destroy_notification(notification);
 
@@ -503,4 +715,90 @@ int push_register_device(PushServer* apns, const char* contact, const char *devi
     LM_DBG("Push DB was updated, contact %s, token [%s], result [%d]\n",contact, device_token, result);
 
     return 1;
+}
+
+void push_check_status(PushServer* apns)
+{
+    uint32_t id = 0;
+
+#define STATUS_LEN 6
+    char *buf;
+    unsigned char status_buf[STATUS_LEN];
+
+    int err = 0;
+
+//    LM_DBG("Check push status....");
+
+    do
+    {
+        err = read_push_status(apns, (char*)status_buf, STATUS_LEN);
+        switch(err)
+        {
+            case 0:
+            {
+//                LM_DBG("There is no status message");
+                break;
+            }
+            case -1:
+//                LM_DBG("There is error occured");
+                break;
+            default:
+                break;
+        }
+
+        if (err == 0 || err == -1) {
+            time_t before = time(NULL) - 2;
+            
+            while(before > top_message_sent())
+            {
+                if (0 == pop_message(NULL, NULL, NULL, NULL))
+                    return;
+            }
+            return;
+        }
+
+        {
+            bin2str((char*)status_buf, STATUS_LEN, &buf);
+
+            LM_DBG("Got status message from apns: [%s], length %d\n", buf, STATUS_LEN);
+            free(buf);
+        }
+
+        if (status_buf[0] != STATUS_CMD)
+        {
+            LM_ERR("Received wrong status cmd (%c), expecting '8'", status_buf[0]);
+            return;
+        }
+
+        memcpy(status_buf+2, &id, sizeof(id));
+
+        LM_INFO("Status message for %d (%u): response status: [%01x]", 
+                ntohl(id), 
+                id,
+                status_buf[1]);
+
+
+        switch( status_buf[1])
+        {
+            case 0: // No errors encountered
+                break;
+            case 1: // Processing error
+            case 2: // Missing device token
+            case 3: // Missing topic
+            case 4: // Missing payload
+            case 5: // Invalid token size
+            case 6: // Invalid topic size
+            case 7: // Invalid payload size
+                LM_ERR("APNS push: error is critical will not resend");
+                break;
+            case 8: // Invalid token
+                resend_pushes(apns, ntohl(id));
+                break;
+            case 10: // Shutdown
+                
+            case 255: //None (unknown)
+                break;
+        }
+    }
+    while(1);
 }

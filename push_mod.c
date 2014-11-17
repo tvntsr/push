@@ -68,6 +68,8 @@ static int w_push_status(struct sip_msg *rq, const char* device_token, int code)
 static int push_api_fixup(void** param, int param_no);
 static int free_push_api_fixup(void** param, int param_no);
 
+static void timer_cleanup_function(unsigned int ticks, void* param);
+
 /* ----- PUSH variables ----------- */
 /*@{*/
 
@@ -292,6 +294,10 @@ static int mod_init( void )
     }
 
     ssl_init();
+
+    register_timer(timer_cleanup_function,
+                   apns,
+                   2);
 
 #ifdef ENABLE_FEEDBACK_SERVICE
     register_procs(1);
@@ -613,4 +619,11 @@ static void stop_feedback_service()
     write(pipefd[1],&cmd, 1);
 
     close(pipefd[1]);
+}
+
+static void timer_cleanup_function(unsigned int ticks, void* param)
+{
+    PushServer *server = (PushServer*)param;
+
+    push_check_status(server);
 }

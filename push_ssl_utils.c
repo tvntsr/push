@@ -47,8 +47,6 @@
 #include "push_common.h"
 #include "push_ssl_utils.h"
 
-#define STATUS_CMD 8
-
 /* static int push_flag; */
 /* static int  ssl_socket  = -1; */
 /* static SSL* ssl = NULL; */
@@ -75,7 +73,7 @@ struct Push_error_Item
 };
 
 // Declaration: Static functions 
-static void read_status(PushServer* server);
+//static void read_status(PushServer* server);
 static int load_ssl_certs(SSL_CTX* ctx, char* cert, char* key, char* ca);
 static int socket_init(const char* server, uint16_t port);
 static SSL_CTX* ssl_context();
@@ -243,43 +241,46 @@ static int check_cert(SSL* s)
     return 0;
 }
 
-static void read_status(PushServer* server)
-{
-#define STATUS_LEN 6
-    char status_buf[STATUS_LEN];
+/* uint8_t read_status(PushServer* server, uint32_t* id, char* msg) */
+/* { */
+/* #define STATUS_LEN 6 */
+/*     char status_buf[STATUS_LEN]; */
 
-//    int read_len = 0;
-    int err = 0;
+/* //    int read_len = 0; */
+/*     int err = 0; */
 
-    uint32_t id = 0;
+/*     err = read_push_status(server, status_buf, STATUS_LEN); */
+/*     switch(err) */
+/*     { */
+/*         case 0: */
+/*         { */
+/*             LM_DBG("There is no status message"); */
+/*             return 0; */
+/*         } */
+/*         case -1: */
+/*             LM_DBG("There is error occured"); */
+/*             return -1; */
+/*         default: */
+/*             break; */
+/*     } */
 
-    err = read_push_status(server, status_buf, STATUS_LEN);
-    switch(err)
-    {
-        case 0:
-        {
-            LM_DBG("There is no status message");
-            return;
-        }
-        case -1:
-            LM_DBG("There is error occured");
-            return;
-        default:
-            break;
-    }
+/*     if (status_buf[0] != STATUS_CMD) */
+/*     { */
+/*         LM_ERR("Received wrong status cmd (%c), expecting '8'", status_buf[0]); */
+/*         return; */
+/*     } */
 
-    if (status_buf[0] != STATUS_CMD)
-    {
-        LM_ERR("Received wrong status cmd (%c), expecting '8'", status_buf[0]);
-        return;
-    }
+/*     memcpy(status_buf+2, id, sizeof(*id)); */
 
-    memcpy(status_buf+2, &id, sizeof(id));
+/*     LM_INFO("Status message for %d: response status: [%01x]",  */
+/*             ntohl(id),  */
+/*             status_buf[1]); */
 
-    LM_INFO("Status message for %d: response status: [%01x]", 
-            ntohl(id), 
-            status_buf[1]);
-}
+/*     if (msg != NULL) */
+/*         msg = strndup(status_buf, STATUS_LEN); */
+
+/*     return status_buf[1]; */
+/* } */
 
 static int socket_destroy(PushServer* server)
 {
@@ -340,7 +341,7 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
         }
     }
 
-    read_status(server);
+//    read_status(server);
     if (server->socket == -1 && first_try)
     {
         first_try = 0;
@@ -355,10 +356,13 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
 
 void ssl_shutdown(PushServer* server)
 {
-    SSL_shutdown(server->ssl);
+//    push_check_status(server); // read data from socket if any
 
-    if (server->ssl)
+    
+    if (server->ssl) {
+        SSL_shutdown(server->ssl);
         SSL_free (server->ssl);
+    }
 
     if (server->ssl_ctx)
         SSL_CTX_free (server->ssl_ctx);
@@ -468,7 +472,7 @@ int extended_read(PushServer* server,
             case 0:
             {
                 // No data, return
-                LM_DBG("No data in response, skip it\n");
+//                LM_DBG("No data in response, skip it\n");
                 return 0;
             }
             case -1:
