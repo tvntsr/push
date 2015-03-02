@@ -152,6 +152,9 @@ static int socket_init(const char* server, uint16_t port)
         close(sd);
         sd = -1;
     }
+
+    LM_DBG("Socket %d connected\n", sd);
+    
     return sd;
 }
 
@@ -286,7 +289,6 @@ static int socket_destroy(PushServer* server)
 {
     LM_DBG("Destroy ssl socket %d\n", server->socket);
     ssl_shutdown(server);
-    server->socket = -1;
     return 1;
 }
 
@@ -357,8 +359,6 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
 void ssl_shutdown(PushServer* server)
 {
 //    push_check_status(server); // read data from socket if any
-
-    
     if (server->ssl) {
         SSL_shutdown(server->ssl);
         SSL_free (server->ssl);
@@ -370,6 +370,8 @@ void ssl_shutdown(PushServer* server)
     server->ssl = NULL;
     server->ssl_ctx = NULL;
     /* Clean up. */
+    LM_DBG("Close socket to APNS [%d]\n", server->socket);
+    shutdown(server->socket, SHUT_RDWR);
     close (server->socket);
 
     server->socket = -1;
@@ -392,6 +394,7 @@ int establish_ssl_connection(PushServer* server)
                        server->cert_key, 
                        server->cert_ca);
 
+    LM_DBG("Create new socket, old: %d",server->socket);
     server->socket = socket_init(server->server, server->port);
     if (server->socket == -1)
     {
