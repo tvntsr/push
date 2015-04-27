@@ -15,7 +15,7 @@ NAME=push.so
                         -lssl -lcrypto
 
 CFLAGS+=-g3
-include ../../Makefile.push
+#include ../../Makefile.push
 
 DEFS+=-DKAMAILIO_MOD_INTERFACE
 

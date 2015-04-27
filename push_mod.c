@@ -73,7 +73,6 @@ static void timer_cleanup_function(unsigned int ticks, void* param);
 /* ----- PUSH variables ----------- */
 /*@{*/
 
-static char *push_config = 0;
 static char *apns_cert_file = 0;
 static char *apns_cert_key  = 0;
 static char *apns_cert_ca   = 0;
@@ -121,7 +120,6 @@ static cmd_export_t cmds[] = {
 };
 
 static param_export_t params[] = {
-    {"push_config",        STR_PARAM, &push_config        },
     {"push_db",            STR_PARAM, &push_db            },
     {"push_table",         STR_PARAM, &push_table         },
     {"push_flag",          INT_PARAM, &push_flag          },
@@ -302,9 +300,6 @@ static int mod_init( void )
 #ifdef ENABLE_FEEDBACK_SERVICE
     register_procs(1);
 #endif
-
-    if (push_config == NULL || push_config[0] == '\0')
-        return 0;
 
     /* do all staff in child init*/
 
