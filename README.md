@@ -133,7 +133,7 @@ Defines read timeout for apns feedback comunnication, defined in microseconds
 
 #### 1. push_request(char *device_token[, char *message, char* custom])
 The function to send APNS push notification
-Arguments:
+##### Arguments:
   device_token: 32 chars device token
   message: message to be sent to device in push notification
   custom: sustom json payload to be added to APNS push notification
@@ -143,7 +143,7 @@ push_request("1abcdef01234567890abcdef12345678", "message available");
 
 #### 2. push_register(char *device_token)
 Register device and assign its device token to contact
-Argument:
+##### Argument:
   device_token: device token to be registered
 ```
 		reg_fetch_contacts("location", "$fu", "callee")
@@ -154,7 +154,7 @@ Argument:
 
 #### 3. push_message(char* msg[, char* custom])
 Sends push message to registered device
-Arguments:
+##### Arguments:
   msg: message to be sent
   custom: sustom json payload to be added to APNS push notification
 ```
