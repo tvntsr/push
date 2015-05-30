@@ -128,3 +128,71 @@ Defines apns feedback server port
 
 #### 15. push_apns_feedback_rtimeout (integer)
 Defines read timeout for apns feedback comunnication, defined in microseconds
+
+### 4. Functions
+
+#### 1. push_request(char *device_token[, char *message, char* custom])
+The function to send APNS push notification
+Arguments:
+  device_token: 32 chars device token
+  message: message to be sent to device in push notification
+  custom: sustom json payload to be added to APNS push notification
+```
+push_request("1abcdef01234567890abcdef12345678", "message available");
+```
+
+#### 2. push_register(char *device_token)
+Register device and assign its device token to contact
+Argument:
+  device_token: device token to be registered
+```
+		reg_fetch_contacts("location", "$fu", "callee")
+		xlog("Contact: $ct, instance $(ct{param.value, +sip.instance})");
+
+		push_register($(ct{param.value, pn-tok}));
+```
+
+#### 3. push_message(char* msg[, char* custom])
+Sends push message to registered device
+Arguments:
+  msg: message to be sent
+  custom: sustom json payload to be added to APNS push notification
+```
+request_route {
+	if (is_method("INVITE"))
+	{
+		setflag(FLT_ACC); # do accounting
+		if (!registered("location"))
+		{
+			sl_reply_error();
+			exit;
+		}
+		if (!has_totag())
+                {	
+			xlog("Sending push message...");
+			push_message("Incoming call", "\"notificationCommand\":\"NotificationCommandCall\", \"callState\":\"Started\"");
+                }
+	}
+}
+
+failure_route[MANAGE_FAILURE] {
+	route(NATMANAGE);
+
+	if (t_is_canceled()) {
+		push_message("Missed call", "\"notificationCommand\":\"NotificationCommandCall\", \"callState\":\"Missed\"");
+		exit;
+	}
+
+```
+In this example push message will be sent to device with custom additional json payload:
+```
+{
+ "notificationCommand":"NotificationCommandCall",
+ "callState":"Started"
+}
+```
+```
+{ "notificationCommand": "NotificationCommandCall", 
+  "callState":"Missed"
+}
+```
