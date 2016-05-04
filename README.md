@@ -7,6 +7,7 @@
 #### Table of Contents
   Admin Guide
   1. Overview
+    1. License
   2. Dependencies
     1. Kamailio Modules
     2. External Libraries or Applications
@@ -38,6 +39,9 @@ This is a module which provides Push notification service for Kamailio. It
 implements the APNS interface (currently). In nearest plans extend it to 
 support Android push notifications (GCM)
 
+#### 1. License
+This module release under GNU GPLv3 license. The license could be found in 
+this repository or downloaded from GNU http://www.gnu.org/licenses/gpl.txt
 
 ### 2. Dependencies
   1. Kamailio Modules
