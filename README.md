@@ -30,7 +30,6 @@
     1. push_request
     2. push_register
     3. push_message
-  5. Installation
 
 ## Admin Guide
 
