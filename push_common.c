@@ -352,7 +352,7 @@ PushServer* create_push_server(const char *cert_file,
     server->read_timeout = 0;
     server->write_timeout = 0;
 
-    memset(&server->dbf, sizeof(server->dbf), 0);
+    memset(&server->dbf, 0, sizeof(server->dbf));
     server->db = NULL;
 
     return server;
