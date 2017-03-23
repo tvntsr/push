@@ -5,10 +5,10 @@
 
 #include <arpa/inet.h>
 
-#include "../../sr_module.h"
-#include "../../dprint.h"
-#include "../../mem/mem.h"
-#include "../../parser/parse_to.h"
+#include "../../core/sr_module.h"
+#include "../../core/dprint.h"
+#include "../../core/mem/mem.h"
+#include "../../core/parser/parse_to.h"
 #include "../../lib/cds/list.h"
 #include "../../lib/srdb1/db.h"
 #include "../../lib/srdb1/db_val.h"

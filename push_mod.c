@@ -33,13 +33,13 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include "../../sr_module.h"
-#include "../../trim.h"
-#include "../../dprint.h"
-#include "../../mem/mem.h"
-#include "../../parser/parse_to.h"
-#include "../../parser/parse_uri.h"
-#include "../../cfg/cfg_struct.h"
+#include "../../core/sr_module.h"
+#include "../../core/trim.h"
+#include "../../core/dprint.h"
+#include "../../core/mem/mem.h"
+#include "../../core/parser/parse_to.h"
+#include "../../core/parser/parse_uri.h"
+#include "../../core/cfg/cfg_struct.h"
 
 #include "push_mod.h"
 #include "push.h"
