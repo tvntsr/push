@@ -5,7 +5,7 @@
 
 #include "../../lib/srdb1/db.h"
 
-#define ENABLE_FEEDBACK_SERVICE
+//#define ENABLE_FEEDBACK_SERVICE
 
 #define PUSH_TABLE_VERSION 1
 
