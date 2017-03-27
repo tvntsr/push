@@ -23,9 +23,9 @@
 #include <sys/select.h>
 #include <sys/time.h>
 
-#include "../../dprint.h"
+#include "../../core/dprint.h"
 #include "../../lib/srdb1/db_val.h"
-#include "../../locking.h"
+#include "../../core/locking.h"
 
 #include "push_common.h"
 #include "push_ssl_utils.h"
