@@ -1,6 +1,6 @@
 /*
  * $Id$
- * 
+ *
  * APNs support module
  *
  * Copyright (C) 2013 Volodymyr Tarasenko
@@ -57,7 +57,7 @@ struct Push_error_Item
 {
     char code;
     const  char* msg;
-} push_codes[] = 
+} push_codes[] =
 {
     {0, "No errors encountered"},
     {1, "Processing error"},
@@ -72,7 +72,7 @@ struct Push_error_Item
     {255, "None (unknown)"}
 };
 
-// Declaration: Static functions 
+// Declaration: Static functions
 //static void read_status(PushServer* server);
 static int load_ssl_certs(SSL_CTX* ctx, char* cert, char* key, char* ca);
 static int socket_init(const char* server, uint16_t port);
@@ -102,7 +102,7 @@ static int load_ssl_certs(SSL_CTX* ctx, char* cert, char* key, char* ca)
         LOG_SSL_ERROR(err);
         return -1;
     }
-    
+
     err = SSL_CTX_load_verify_locations(ctx, ca, 0);
     if (err != 1)
     {
@@ -144,7 +144,7 @@ static int socket_init(const char* server, uint16_t port)
         LM_ERR("Socket creation error\n");
         return -1;
     }
-   
+
     err = connect(sd, (struct sockaddr*) &sa, sizeof(sa));
     if (err == -1)
     {
@@ -154,7 +154,7 @@ static int socket_init(const char* server, uint16_t port)
     }
 
     LM_DBG("Socket %d connected\n", sd);
-    
+
     return sd;
 }
 
@@ -195,10 +195,10 @@ static SSL* ssl_start(int sd, SSL_CTX* ctx)
     LM_DBG("SSL connect...\n");
     err = SSL_connect (s);
     LM_DBG("SSL connect done...\n");
-    if ((err) == -1) 
-    { 
-        ERR_print_errors_fp(stderr); 
-        return NULL; 
+    if ((err) == -1)
+    {
+        ERR_print_errors_fp(stderr);
+        return NULL;
     }
     LM_DBG("SSL connect done...\n");
 
@@ -215,7 +215,7 @@ static int check_cert(SSL* s)
        data exchange to be successful. */
     /* /\* Get the cipher - opt *\/ */
     /* printf ("SSL connection using %s\n", SSL_get_cipher (ssl)); */
-  
+
     /* Get server's certificate (note: beware of dynamic allocation) - opt */
     server_cert = SSL_get_peer_certificate (s);
     if (server_cert == NULL)
@@ -299,14 +299,14 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
     int err = 0;
     uint32_t written = 0;
     int first_try = 1;
-    
+
   again:
-    if ((server->socket == -1) && (server->flags != NoReconnect))
+    if ((server->socket == -1 || server->ssl == NULL) && (server->flags != NoReconnect))
         establish_ssl_connection(server);
 
     while(written != length)
     {
-        if (server->socket == -1)
+        if (server->socket == -1 || server->ssl == NULL)
         {
             LM_ERR("Cannot write, peer disconnected...\n");
             return -1;
@@ -344,7 +344,7 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
     }
 
 //    read_status(server);
-    if (server->socket == -1 && first_try)
+    if (server->socket == -1 || server->ssl == NULL) && first_try)
     {
         first_try = 0;
         goto again;
@@ -389,9 +389,9 @@ int establish_ssl_connection(PushServer* server)
 
     LM_DBG("SSL context started, looading certs if any\n");
     if (server->cert_file)
-        load_ssl_certs(server->ssl_ctx, 
-                       server->cert_file, 
-                       server->cert_key, 
+        load_ssl_certs(server->ssl_ctx,
+                       server->cert_file,
+                       server->cert_key,
                        server->cert_ca);
 
     LM_DBG("Create new socket, old: %d",server->socket);
@@ -403,7 +403,7 @@ int establish_ssl_connection(PushServer* server)
         return -1;
     }
 
-    LM_DBG("Push socket initialed\n"); 
+    LM_DBG("Push socket initialed\n");
 
     server->ssl = ssl_start(server->socket, server->ssl_ctx);
     if (server->ssl == NULL)
@@ -430,7 +430,7 @@ int establish_ssl_connection(PushServer* server)
 
 void ssl_init()
 {
-    SSL_library_init(); 
+    SSL_library_init();
     SSL_load_error_strings();
 }
 
@@ -449,7 +449,7 @@ int extended_read(PushServer* server,
     fd_set readfds;
     struct timeval timeout;
 
-    if ((server->socket == -1) && -1 == establish_ssl_connection(server))
+    if ((server->socket == -1) || server->ssl == NULL) && -1 == establish_ssl_connection(server))
     {
         LM_ERR("extended_read failed, cannot reconnecd  initialization failed\n");
         return -1;
@@ -466,7 +466,7 @@ int extended_read(PushServer* server,
         {
             FD_SET(comm_sock, &readfds);
         }
-        
+
         mx = server->socket > comm_sock ? server->socket+1 : comm_sock +1;
 
         err = select(mx, &readfds, 0, 0, &timeout);
