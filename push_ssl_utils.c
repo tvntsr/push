@@ -344,7 +344,7 @@ int send_push_data(PushServer* server, const char* buffer, uint32_t length)
     }
 
 //    read_status(server);
-    if (server->socket == -1 || server->ssl == NULL) && first_try)
+    if ((server->socket == -1 || server->ssl == NULL) && first_try)
     {
         first_try = 0;
         goto again;
@@ -449,7 +449,7 @@ int extended_read(PushServer* server,
     fd_set readfds;
     struct timeval timeout;
 
-    if ((server->socket == -1) || server->ssl == NULL) && -1 == establish_ssl_connection(server))
+    if ((server->socket == -1 || server->ssl == NULL) && -1 == establish_ssl_connection(server))
     {
         LM_ERR("extended_read failed, cannot reconnecd  initialization failed\n");
         return -1;
