@@ -16,7 +16,7 @@
 #include "push_ssl_utils.h"
 #include "apns_feedback.h"
 
-#include "../../dprint.h"
+#include "../../core/dprint.h"
 
 #define CHECK_FEEDBACK_TIMEOUT 3600
 

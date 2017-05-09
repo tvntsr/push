@@ -42,7 +42,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-#include "../../dprint.h"
+#include "../../core/dprint.h"
 
 #include "push_common.h"
 #include "push_ssl_utils.h"
@@ -136,7 +136,7 @@ static int socket_init(const char* server, uint16_t port)
         memcpy(&sa.sin_addr, host->h_addr_list[0], host->h_length);
     }
 
-    LM_ERR("Create a socket and connect it to %s:%d\n", server, port);
+    LM_DBG("Create a socket and connect it to %s:%d\n", server, port);
     /* Create a socket and connect to server using normal socket calls. */
     sd = socket (PF_INET, SOCK_STREAM, 0);
     if (sd == -1)
